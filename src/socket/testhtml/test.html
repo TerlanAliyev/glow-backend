@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lyra Super Test Client (Fixed)</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #f5f5f7;
+            color: #1d1d1f;
+            padding: 20px;
+            max-width: 800px;
+            margin: auto;
+        }
+
+        .container {
+            background-color: #fff;
+            padding: 20px;
+            border-radius: 12px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+
+        h1, h2 {
+            color: #000;
+        }
+
+        h1#currentUser {
+            text-align: center;
+            color: #007aff;
+            min-height: 40px;
+        }
+
+        input, textarea, button {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 10px;
+            border: 1px solid #d2d2d7;
+            border-radius: 8px;
+            font-size: 16px;
+            box-sizing: border-box;
+        }
+
+        button {
+            background-color: #007aff;
+            color: white;
+            font-weight: 600;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        button:hover {
+            background-color: #005bb5;
+        }
+
+        button:disabled {
+            background-color: #d2d2d7;
+            cursor: not-allowed;
+        }
+
+        .grid-2 {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 10px;
+        }
+
+        #logs {
+            background-color: #e5e5ea;
+            padding: 15px;
+            border-radius: 8px;
+            height: 200px;
+            overflow-y: scroll;
+            font-family: 'SF Mono', 'Courier New', monospace;
+            font-size: 14px;
+            white-space: pre-wrap;
+            margin-top: 10px;
+        }
+
+        .status {
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-weight: 600;
+            display: inline-block;
+        }
+
+        .status.disconnected {
+            background-color: #ff3b30;
+            color: white;
+        }
+
+        .status.connected {
+            background-color: #34c759;
+            color: white;
+        }
+
+        #compassResults, #connections, #incomingSignals {
+            min-height: 50px;
+            padding: 15px;
+            border: 2px dashed #007aff;
+            border-radius: 8px;
+        }
+
+        .user-card {
+            background-color: #f5f5f7;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .signal-btn {
+            width: auto;
+            padding: 5px 10px;
+            font-size: 12px;
+            margin-left: 10px;
+            background-color: #ff9500;
+        }
+
+        .connection-card {
+            background-color: #e0ffe8;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 5px;
+            border-left: 5px solid #34c759;
+            cursor: pointer;
+        }
+
+        .connection-card:hover {
+            background-color: #d4f5dc;
+        }
+
+        .signal-card {
+            background-color: #fff5e0;
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 5px;
+            border-left: 5px solid #ff9500;
+        }
+
+        .log-entry.sent {
+            color: #007aff;
+        }
+
+        .log-entry.received {
+            color: #34c759;
+        }
+
+        .log-entry.error {
+            color: #ff3b30;
+        }
+
+        #chatRoom {
+            display: none;
+        }
+
+        #chatMessages {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #d2d2d7;
+            border-radius: 8px;
+            padding: 10px;
+            margin-bottom: 10px;
+            background-color: #f9f9f9;
+        }
+
+        .message {
+            margin-bottom: 10px;
+            padding: 8px 12px;
+            border-radius: 12px;
+            max-width: 70%;
+        }
+
+        .message.sent {
+            background-color: #007aff;
+            color: white;
+            margin-left: auto;
+            text-align: right;
+        }
+
+        .message.received {
+            background-color: #e5e5ea;
+            color: #1d1d1f;
+        }
+
+        .sender {
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            color: #666;
+        }
+    </style>
+</head>
+
+<body>
+
+    <h1 id="currentUser">Lyra Super Test Client (Fixed)</h1>
+    <p style="text-align: center;">Status: <span id="status" class="status disconnected">Disconnected</span></p>
+
+    <div class="container">
+        <h2>1. Qoşulma</h2>
+        <input type="text" id="serverUrl" value="http://localhost:3000">
+        <textarea id="authToken" placeholder="Login etdikdən sonra aldığınız JWT tokeni bura yapışdırın..."></textarea>
+        <button id="connectBtn">Connect to WebSocket</button>
+        <button id="disconnectBtn" style="display:none;">Disconnect</button>
+    </div>
+
+    <div class="container" id="actions" style="display:none;">
+        <h2>2. Əməliyyatlar</h2>
+        <div class="grid-2">
+            <input type="number" id="latitude" placeholder="Latitude (məs: 40.3777)" value="40.3777">
+            <input type="number" id="longitude" placeholder="Longitude (məs: 49.8344)" value="49.8344">
+        </div>
+        <button id="checkInBtn">1. Check-in via API</button>
+        <hr style="margin: 20px 0;">
+        <input type="number" id="venueId" placeholder="Venue ID (məsələn, 1)">
+        <button id="joinVenueBtn">2. Join Venue via WebSocket</button>
+    </div>
+
+    <div class="container">
+        <h2>3. Kompas Nəticələri</h2>
+        <div id="compassResults">
+            <p>Nəticələri görmək üçün məkana daxil olun...</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>4. Gələn Siqnallar</h2>
+        <div id="incomingSignals">
+            <p>Hələ heç bir siqnal yoxdur...</p>
+        </div>
+    </div>
+
+    <div class="container">
+        <h2>5. Yeni Bağlantılar (Matches)</h2>
+        <div id="connections">
+            <p>Hələ heç bir bağlantı yoxdur...</p>
+        </div>
+    </div>
+
+    <div class="container" id="chatRoom">
+        <h2 id="chatWith">... ilə söhbət</h2>
+        <div id="chatMessages"></div>
+        <textarea id="messageInput" placeholder="Mesajınızı yazın..." rows="2"></textarea>
+        <button id="sendMessageBtn">Göndər</button>
+    </div>
+
+    <div class="container">
+        <h2 style="margin-top: 20px;">Texniki Loqlar</h2>
+        <div id="logs"></div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
+    <script>
+        document.addEventListener('DOMContentLoaded', () => {
+            let socket;
+            let currentUser = null; // Bu əlavə edildi
+            let currentConnection = null; // Bu düzəldildi
+            
+            const statusEl = document.getElementById('status');
+            const connectBtn = document.getElementById('connectBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+            const actionsEl = document.getElementById('actions');
+            const logsEl = document.getElementById('logs');
+            const compassResultsEl = document.getElementById('compassResults');
+            const connectionsEl = document.getElementById('connections');
+            const incomingSignalsEl = document.getElementById('incomingSignals');
+            const checkInBtn = document.getElementById('checkInBtn');
+            const authTokenEl = document.getElementById('authToken');
+            const currentUserEl = document.getElementById('currentUser');
+            const sendMessageBtn = document.getElementById('sendMessageBtn');
+            const messageInputEl = document.getElementById('messageInput');
+            
+            let compassUsers = [];
+
+            function log(message, type = '') {
+                if (!logsEl) return;
+                const entry = document.createElement('div');
+                entry.className = `log-entry ${type}`;
+                entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+                logsEl.appendChild(entry);
+                logsEl.scrollTop = logsEl.scrollHeight;
+            }
+
+            function renderCompass() {
+                compassResultsEl.innerHTML = '';
+                if (compassUsers.length > 0) {
+                    const header = document.createElement('h3');
+                    header.textContent = `Bu məkanda ${compassUsers.length} nəfər tapıldı:`;
+                    compassResultsEl.appendChild(header);
+                    compassUsers.forEach(user => {
+                        if (!user || !user.userId) {
+                            console.error('Kompasda səhv istifadəçi obyekti:', user);
+                            return;
+                        }
+
+                        const userCard = document.createElement('div');
+                        userCard.className = 'user-card';
+                        userCard.id = `user-${user.userId}`;
+                        userCard.innerHTML = `<span><strong>${user.name}</strong> (ID: ${user.userId})</span>`;
+
+                        const signalBtn = document.createElement('button');
+                        signalBtn.className = 'signal-btn';
+                        signalBtn.textContent = 'Siqnal Göndər';
+
+                        signalBtn.onclick = () => {
+                            if (socket && socket.connected) {
+                                log(`SENT EVENT "send_signal" to user: ${user.userId}`, 'sent');
+                                socket.emit('send_signal', { receiverId: user.userId });
+                                signalBtn.disabled = true;
+                                signalBtn.textContent = 'Göndərildi';
+                            } else {
+                                log('XƏTA: Siqnal göndərmək üçün WebSocket bağlantısı aktiv deyil!', 'error');
+                                alert('WebSocket bağlantısı yoxdur. Zəhmət olmasa, yenidən qoşulun.');
+                            }
+                        };
+                        userCard.appendChild(signalBtn);
+                        compassResultsEl.appendChild(userCard);
+                    });
+                } else {
+                    compassResultsEl.innerHTML = '<p>Bu məkanda başqa heç kim yoxdur.</p>';
+                }
+            }
+
+            async function fetchAndDisplayUsername(token) {
+                const serverUrl = document.getElementById('serverUrl').value;
+                if (!token || token.length < 20) {
+                    currentUserEl.textContent = 'Lyra Super Test Client';
+                    return;
+                }
+                try {
+                    const response = await fetch(`${serverUrl}/api/auth/me`, {
+                        method: 'GET',
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    if (!response.ok) {
+                        currentUserEl.textContent = 'Token Etibarsızdır';
+                        return;
+                    }
+                    const data = await response.json();
+                    if (data && data.profile && data.profile.name) {
+                        currentUser = data; // Bu əlavə edildi
+                        currentUserEl.textContent = `Current User: ${data.profile.name}`;
+                        log(`İstifadəçi təyin olundu: ${data.profile.name}`, 'received');
+                    }
+                } catch (error) {
+                    log(`İstifadəçi adını almaq mümkün olmadı: ${error.message}`, 'error');
+                    currentUserEl.textContent = 'Serverə Qoşulmaq Olmadı';
+                }
+            }
+
+            async function fetchChatHistory(connectionId) {
+                const token = authTokenEl.value;
+                const serverUrl = document.getElementById('serverUrl').value;
+                log(`API REQUEST: /api/chat/${connectionId}/messages sorğusu göndərilir...`, 'sent');
+                try {
+                    const response = await fetch(`${serverUrl}/api/chat/${connectionId}/messages`, {
+                        headers: { 'Authorization': `Bearer ${token}` }
+                    });
+                    return await response.json();
+                } catch (error) {
+                    log(`Chat history alınarkən xəta: ${error.message}`, 'error');
+                    return [];
+                }
+            }
+
+            function appendMessage(message) {
+                const chatMessagesEl = document.getElementById('chatMessages');
+                if (!chatMessagesEl) return;
+                
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'message';
+
+                if (currentUser && message.senderId === currentUser.id) {
+                    msgDiv.classList.add('sent');
+                } else {
+                    msgDiv.classList.add('received');
+                    if (message.sender?.profile?.name) {
+                        const senderName = document.createElement('div');
+                        senderName.className = 'sender';
+                        senderName.textContent = message.sender.profile.name;
+                        msgDiv.appendChild(senderName);
+                    }
+                }
+
+                const content = document.createElement('div');
+                content.textContent = message.content;
+                msgDiv.appendChild(content);
+
+                chatMessagesEl.appendChild(msgDiv);
+                chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+            }
+
+            // Event Listeners
+            authTokenEl.addEventListener('input', (event) => {
+                fetchAndDisplayUsername(event.target.value);
+            });
+
+            checkInBtn.addEventListener('click', async () => {
+                const serverUrl = document.getElementById('serverUrl').value;
+                const token = document.getElementById('authToken').value;
+                const latitude = parseFloat(document.getElementById('latitude').value);
+                const longitude = parseFloat(document.getElementById('longitude').value);
+                
+                if (!token || !latitude || !longitude) {
+                    log('XƏTA: Check-in üçün Token, Latitude və Longitude daxil edilməlidir!', 'error');
+                    return;
+                }
+                
+                log('API REQUEST: /api/location/check-in sorğusu göndərilir...', 'sent');
+                try {
+                    const response = await fetch(`${serverUrl}/api/location/check-in`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify({ latitude, longitude })
+                    });
+                    const data = await response.json();
+                    if (!response.ok) {
+                        throw new Error(data.message || 'Check-in zamanı xəta baş verdi.');
+                    }
+                    log(`API RESPONSE: ${JSON.stringify(data)}`, 'received');
+                    document.getElementById('venueId').value = data.data.venueId;
+                } catch (error) {
+                    log(`API XƏTASI: ${error.message}`, 'error');
+                }
+            });
+
+            connectBtn.addEventListener('click', () => {
+                const serverUrl = document.getElementById('serverUrl').value;
+                const token = document.getElementById('authToken').value;
+                if (!token) {
+                    log('XƏTA: Zəhmət olmasa, token daxil edin!', 'error');
+                    return;
+                }
+                
+                log(`Connecting to ${serverUrl}...`, 'sent');
+                socket = io(serverUrl, { auth: { token: token } });
+
+                socket.on('connect', () => {
+                    console.log("✅ Socket qoşuldu:", socket.id);
+                    statusEl.textContent = 'Connected';
+                    statusEl.className = 'status connected';
+                    connectBtn.style.display = 'none';
+                    disconnectBtn.style.display = 'block';
+                    actionsEl.style.display = 'block';
+                    log('Serverə uğurla qoşuldu!', 'received');
+
+                    fetchAndDisplayUsername(token);
+
+                    connectionsEl.innerHTML = '<p>Hələ heç bir bağlantı yoxdur...</p>';
+                    incomingSignalsEl.innerHTML = '<p>Hələ heç bir siqnal yoxdur...</p>';
+                    compassUsers = [];
+                    renderCompass();
+                });
+
+                socket.on('disconnect', () => {
+                    statusEl.textContent = 'Disconnected';
+                    statusEl.className = 'status disconnected';
+                    connectBtn.style.display = 'block';
+                    disconnectBtn.style.display = 'none';
+                    actionsEl.style.display = 'none';
+                    log('Serverdən ayrıldı.', 'error');
+                    currentUserEl.textContent = 'Lyra Super Test Client (Fixed)';
+                });
+
+                socket.on('connect_error', (err) => {
+                    log(`Qoşulma xətası: ${err.message}`, 'error');
+                });
+
+                socket.on('compass_update', (users) => {
+                    log(`RECEIVED EVENT "compass_update" with ${users.length} users.`, 'received');
+                    compassUsers = users;
+                    renderCompass();
+                });
+
+                socket.on('user_joined', (newUser) => {
+                    log(`RECEIVED EVENT "user_joined": ${newUser.name} joined.`, 'received');
+                    if (!compassUsers.some(u => u.userId === newUser.userId)) {
+                        compassUsers.push(newUser);
+                    }
+                    renderCompass();
+                });
+
+                socket.on('user_left', (data) => {
+                    log(`RECEIVED EVENT "user_left": User ${data.userId} left.`, 'received');
+                    compassUsers = compassUsers.filter(u => u.userId !== data.userId);
+                    renderCompass();
+                });
+
+                socket.on('signal_received', (data) => {
+                    log(`RECEIVED EVENT "signal_received": ${JSON.stringify(data)}`, 'received');
+                    if (incomingSignalsEl.querySelector('p')) {
+                        incomingSignalsEl.innerHTML = '';
+                    }
+                    const signalCard = document.createElement('div');
+                    signalCard.className = 'signal-card';
+                    signalCard.innerHTML = `<p><strong>${data.from.name}</strong> sizə siqnal göndərdi!</p>`;
+                    incomingSignalsEl.appendChild(signalCard);
+                });
+
+                socket.on('new_connection', (data) => {
+                    log(`RECEIVED EVENT "new_connection": ${JSON.stringify(data)}`, 'received');
+                    if (connectionsEl.querySelector('p')) {
+                        connectionsEl.innerHTML = '';
+                    }
+                    const connectionCard = document.createElement('div');
+                    connectionCard.className = 'connection-card';
+                    connectionCard.innerHTML = `
+                        <h3>Təbriklər!</h3>
+                        <p><strong>${data.partner.name}</strong> ilə yeni bir bağlantı qurdunuz! (Click to chat)</p>
+                        <button style="margin-top: 10px; width: auto; padding: 8px 16px;">Chat Aç</button>
+                    `;
+                    
+                    // Event listener əlavə edirik
+                    connectionCard.addEventListener('click', async () => {
+                        log(`Connection card clicked - Opening chat with ${data.partner.name}`, 'sent');
+                        
+                        currentConnection = data;
+                        document.getElementById('chatWith').textContent = `${data.partner.name} ilə söhbət`;
+                        document.getElementById('chatRoom').style.display = 'block';
+                        
+                        // Chat history yükləyirik
+                        const history = await fetchChatHistory(data.connection.id);
+                        const chatMessagesEl = document.getElementById('chatMessages');
+                        chatMessagesEl.innerHTML = '';
+                        
+                        if (history && history.length > 0) {
+                            history.forEach(msg => appendMessage(msg));
+                        } else {
+                            chatMessagesEl.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">Hələ heç bir mesaj yoxdur. İlk mesajı siz yazın!</p>';
+                        }
+                        
+                        log(`Chat açıldı: ${data.partner.name} (Connection ID: ${data.connection.id})`, 'received');
+                        
+                        // Chat inputuna fokus veririk
+                        document.getElementById('messageInput').focus();
+                        
+                        // Chat room-a scroll edirik
+                        document.getElementById('chatRoom').scrollIntoView({ behavior: 'smooth' });
+                    });
+                    
+                    connectionsEl.appendChild(connectionCard);
+                });
+
+                socket.on('receive_message', (message) => {
+                    log(`RECEIVED EVENT "receive_message": ${JSON.stringify(message)}`, 'received');
+                    if (currentConnection && currentConnection.connection && message.connectionId === currentConnection.connection.id) {
+                        appendMessage(message);
+                    }
+                });
+
+                socket.on('error', (data) => {
+                    log(`RECEIVED EVENT "error": ${JSON.stringify(data)}`, 'error');
+                });
+            });
+
+            disconnectBtn.addEventListener('click', () => {
+                if (socket) socket.disconnect();
+            });
+
+            document.getElementById('joinVenueBtn').addEventListener('click', () => {
+                const venueId = document.getElementById('venueId').value;
+                if (socket && venueId) {
+                    log(`SENT EVENT "join_venue" with data: ${venueId}`, 'sent');
+                    compassResultsEl.innerHTML = '<p>Kompas yenilənir...</p>';
+                    socket.emit('join_venue', Number(venueId));
+                } else {
+                    log('XƏTA: Zəhmət olmasa, Venue ID daxil edin!', 'error');
+                }
+            });
+
+            // Mesaj göndərmə event listener - BU DÜZƏLDİLDİ
+            sendMessageBtn.addEventListener('click', () => {
+                const content = messageInputEl.value.trim();
+                
+                console.log('=== MESAJ GÖNDƏRMƏ DEBUG ===');
+                console.log('Content:', content);
+                console.log('CurrentConnection:', currentConnection);
+                console.log('Socket connected:', socket ? socket.connected : 'no socket');
+                
+                if (!currentConnection || !currentConnection.connection) {
+                    log('XƏTA: Əvvəlcə bir bağlantı seçin!', 'error');
+                    alert('Xəta: Əvvəlcə yuxarıdakı bağlantı kartına klik edin!');
+                    return;
+                }
+                
+                if (!content) {
+                    log('XƏTA: Mesaj boş ola bilməz!', 'error');
+                    return;
+                }
+                
+                if (!socket || !socket.connected) {
+                    log('XƏTA: WebSocket bağlantısı yoxdur!', 'error');
+                    return;
+                }
+                
+                log(`SENT EVENT "send_message" to connection: ${currentConnection.connection.id}`, 'sent');
+                socket.emit('send_message', {
+                    connectionId: currentConnection.connection.id,
+                    content: content
+                });
+                
+                messageInputEl.value = '';
+            });
+
+            // Enter ilə mesaj göndərmə
+            messageInputEl.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    sendMessageBtn.click();
+                }
+            });
+        });
+    </script>
+</body>
+</html>
