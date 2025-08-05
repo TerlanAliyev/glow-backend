@@ -109,6 +109,36 @@ Tətbiq işə düşdükdən sonra, bütün API endpoint-lərinin tam sənədlər
 
 [http://localhost:3000/api-docs](http://localhost:3000/api-docs)
 
+Bu böyük yeniləmə ilə istifadəçi aktivliyini, güvəni və platforma daxili interaktivliyi artırmaq üçün 3 əsas funksiya əlavə edildi. Həmçinin, admin paneli və real-zamanlı servislərdə bir neçə xəta aradan qaldırıldı və təkmilləşdirmələr edildi.
+
+**✨ Yeni Funksiyalar:**
+
+1.  **Şəkil ilə Verifikasiya Sistemi:**
+    * İstifadəçilər artıq profillərini təsdiqlətmək üçün şəkil göndərə bilərlər.
+    * Adminlər admin panel vasitəsilə sorğuları nəzərdən keçirə, təsdiq və ya rədd edə bilərlər.
+    * Verifikasiya olmayan istifadəçilərin şəxsi mesaj və siqnal göndərməsi məhdudlaşdırılıb.
+    * Yeni istifadəçi təcrübəsini yaxşılaşdırmaq üçün "GÖZLƏMƏDƏ" statuslu yeni istifadəçilərə 3 "sınaq" siqnalı göndərmək və qrup söhbətlərində iştirak etmək imkanı verən müvəqqəti sistem tətbiq edildi.
+    * İstifadəçilər verifikasiya sorğuları təsdiq və ya rədd edildikdə bildiriş alırlar.
+
+2.  **Profil Statusu Funksiyası:**
+    * İstifadəçilər profillərində 24 saatlıq müvəqqəti status (məsələn, "Konsert üçün buradayam!") təyin edə bilərlər.
+    * Aktiv status, real-zamanlı "Kompas" görünüşündə digər istifadəçilərə göstərilir və ünsiyyətə başlamağı asanlaşdırır.
+
+3.  **Qeyimləşdirmə (Gamification - Nişanlar):**
+    * Nişan/mükafat sistemi üçün infrastruktur quruldu.
+    * Verilənlər bazasına `Badge` və `UserBadge` modelləri əlavə edildi.
+    * 10 "match" əldə etdikdən sonra istifadəçilərə avtomatik olaraq verilən "Sosial Kəpənək" nişanı yaradıldı.
+    * İstifadəçilər yeni nişan qazandıqda bildiriş alırlar.
+    * Nişanlar artıq ictimaidir və istifadəçi profillərinin məlumatlarına daxildir.
+    * Admin panelində nişanları tam idarə etmək üçün CRUD (Yarat, Oxu, Yenilə, Sil) funksionallığı əlavə edildi.
+
+**🐛 Xəta Düzəlişləri və Təkmilləşdirmələr:**
+
+* Admin panelində şikayətləri və "buz sındıran" sualları çəkərkən yaranan proqram çöküşü aradan qaldırıldı.
+* Çoxsaylı Prisma sxema və validasiya xətaları həll edildi.
+* Admin controller-də modulların səhv `import` yolu düzəldildi.
+* Artıq `update` sorğusu silinərək verilənlər bazası sorğuları optimallaşdırıldı.
+* Rədd edilmiş şəkil URL-i saxlanılaraq admin verifikasiya prosesi təkmilləşdirildi.
 ## 🔮 Gələcək Planlar (Future Plans)
 
 - **Redis İnteqrasiyası:** Yüksək yüklənmə altında performansı artırmaq üçün Caching və Socket.IO Adapter-in tətbiqi.
