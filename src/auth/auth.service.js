@@ -4,6 +4,7 @@ const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const googleClient = new OAuth2Client();
 const { sendPasswordResetEmail, sendEmailChangeConfirmationEmail } = require('../config/mailer');
+const redis = require('../config/redis'); // Faylın yuxarısına əlavə edin
 
 const generateAndStoreTokens = async (userId) => {
     // 1. Access Token yarat (ömrü qısa: 15 dəqiqə)
@@ -19,7 +20,7 @@ const generateAndStoreTokens = async (userId) => {
     // 3. Refresh Token-i verilənlər bazasına yadda saxla
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30);
-    
+
     // İstifadəçinin köhnə refresh tokenlərini silib, yenisini əlavə edirik
     await prisma.refreshToken.deleteMany({ where: { userId: userId } });
     await prisma.refreshToken.create({
@@ -32,7 +33,7 @@ const generateAndStoreTokens = async (userId) => {
 const registerNewUser = async (userData) => {
     const { email, password, name, age, gender } = userData;
     const hashedPassword = await bcrypt.hash(password, 10);
-    
+
     const threeDaysFromNow = new Date();
     threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
 
@@ -47,7 +48,7 @@ const registerNewUser = async (userData) => {
     });
 
     const { accessToken, refreshToken } = await generateAndStoreTokens(newUser.id);
-    
+
     delete newUser.password;
     return { user: newUser, accessToken, refreshToken };
 };
@@ -82,7 +83,7 @@ const loginUser = async (loginData) => {
     // Refresh Token-i verilənlər bazasına yadda saxla
     const expiresAt = new Date();
     expiresAt.setDate(expiresAt.getDate() + 30);
-    
+
     // Köhnə tokenləri silib yenisini əlavə edirik ki, cədvəl böyüməsin
     await prisma.refreshToken.deleteMany({ where: { userId: user.id } });
     await prisma.refreshToken.create({
@@ -90,7 +91,7 @@ const loginUser = async (loginData) => {
     });
 
     delete user.password;
-    
+
     // YEKUN CAVAB: Hər üç obyekti düzgün adlarla qaytarırıq
     return { user, accessToken, refreshToken };
 };
@@ -118,7 +119,7 @@ const loginWithGoogle = async (idToken) => {
         where: { email },
         include: { profile: true }
     });
-    
+
     let message = 'Sistemə uğurla daxil oldunuz!';
 
     if (!user) {
@@ -146,7 +147,7 @@ const loginWithGoogle = async (idToken) => {
 
     // DÜZƏLİŞ: Artıq hər iki tokeni yaradıb qaytarırıq
     const { accessToken, refreshToken } = await generateAndStoreTokens(user.id);
-    
+
     delete user.password;
     return { user, accessToken, refreshToken, message };
 };
@@ -164,6 +165,19 @@ const refreshAccessToken = async (oldRefreshToken) => {
 };
 
 const getUserProfileById = async (userId) => {
+    const cacheKey = `user_profile:${userId}`;
+
+    try {
+        const cachedProfile = await redis.get(cacheKey);
+        if (cachedProfile) {
+            console.log(`[CACHE HIT] ✅ İstifadəçi profili (${userId}) sürətli keşdən (Redis) tapıldı.`);
+            return JSON.parse(cachedProfile);
+        }
+    } catch (error) {
+        console.error("Redis-dən oxuma xətası:", error);
+    }
+
+    console.log(`[CACHE MISS] ❌ İstifadəçi profili (${userId}) keşdə tapılmadı. Verilənlər bazasına sorğu göndərilir...`);
     const user = await prisma.user.findUnique({
         where: { id: userId },
         include: {
@@ -171,12 +185,16 @@ const getUserProfileById = async (userId) => {
           role: true
         },
     });
-    if (!user) {
-        const error = new Error('Bu ID ilə istifadəçi tapılmadı.');
-        error.statusCode = 404;
-        throw error;
-    }
+    
+    if (!user) throw new Error('Bu ID ilə istifadəçi tapılmadı.');
     delete user.password;
+
+    try {
+        await redis.set(cacheKey, JSON.stringify(user), 'EX', 3600); 
+    } catch (error) {
+        console.error("Redis-ə yazma xətası:", error);
+    }
+
     return user;
 };
 
@@ -189,11 +207,11 @@ const logoutUser = async (userId) => {
     return { success: true };
 };
 const requestPasswordReset = async (email) => {
-  console.log('🔍 Email üçün OTP sorğusu gəldi:', email);
+    console.log('🔍 Email üçün OTP sorğusu gəldi:', email);
 
-  
+
     const user = await prisma.user.findUnique({ where: { email } });
-      if (!user) {
+    if (!user) {
         console.log('⚠️ İstifadəçi tapılmadı:', email);
         return;
     }
@@ -259,6 +277,12 @@ const resetPassword = async (email, token, newPassword) => {
             where: { userId: resetRequest.userId }
         })
     ]);
+    const cacheKey = `user_profile:${resetRequest.userId}`;
+    try {
+        await redis.del(cacheKey);
+    } catch (error) {
+        console.error("Redis-dən silmə xətası:", error);
+    }
 };
 const initiateEmailChange = async (userId, newEmail) => {
     // Yeni e-poçtun artıq istifadə olunub-olunmadığını yoxlayaq
@@ -298,17 +322,23 @@ const confirmEmailChange = async (userId, otp) => {
         }),
         prisma.emailChangeToken.deleteMany({ where: { userId: userId } }),
     ]);
+    const cacheKey = `user_profile:${userId}`;
+    try {
+        await redis.del(cacheKey);
+    } catch (error) {
+        console.error("Redis-dən silmə xətası:", error);
+    }
 };
 
 module.exports = {
-  registerNewUser,
-  loginUser,
-  getUserProfileById,
-  loginWithGoogle,
-  logoutUser,requestPasswordReset,
+    registerNewUser,
+    loginUser,
+    getUserProfileById,
+    loginWithGoogle,
+    logoutUser, requestPasswordReset,
     verifyPasswordResetOTP,
     resetPassword,
-  initiateEmailChange,
-  confirmEmailChange,
-  refreshAccessToken
+    initiateEmailChange,
+    confirmEmailChange,
+    refreshAccessToken
 };

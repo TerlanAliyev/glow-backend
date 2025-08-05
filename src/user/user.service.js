@@ -246,20 +246,35 @@ const initiateAccountDeletion = async (userId) => {
     // E-poçt göndəririk
     await sendAccountDeletionEmail(user.email, token);
 };
-const getCheckInHistory = async (userId, { page = 1, limit = 20 }) => {
+
+const getCheckInHistory = async (userId, queryParams) => {
+    // DÜZƏLİŞ: Gələn dəyərləri rəqəmə çeviririk
+    const page = parseInt(queryParams.page) || 1;
+    const limit = parseInt(queryParams.limit) || 20;
+
     const skip = (page - 1) * limit;
     const where = { userId };
+
     const [history, total] = await prisma.$transaction([
         prisma.checkInHistory.findMany({
             where,
             orderBy: { createdAt: 'desc' },
-            skip,
-            take: limit,
-            include: { venue: { select: { name: true, address: true } } }
+            skip: skip,
+            take: limit, // Artıq bu dəyər rəqəmdir
+            include: { 
+                venue: { 
+                    select: { name: true, address: true } 
+                } 
+            }
         }),
         prisma.checkInHistory.count({ where })
     ]);
-    return { data: history, totalPages: Math.ceil(total / limit), currentPage: page };
+
+    return { 
+        data: history, 
+        totalPages: Math.ceil(total / limit), 
+        currentPage: page 
+    };
 };
 
 const deleteCheckInHistory = async (userId) => {

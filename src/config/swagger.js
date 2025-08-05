@@ -511,7 +511,7 @@ const options = {
           security: [{ bearerAuth: [] }],
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
           responses: {
-            '200': { 
+            '200': {
               description: 'Canlı statistik məlumatlar',
               content: {
                 'application/json': {
@@ -519,7 +519,7 @@ const options = {
                     type: 'object',
                     properties: {
                       userCount: { type: 'integer', example: 12 },
-                      genderRatio: { type: 'object', properties: { male: {type: 'integer'}, female: {type: 'integer'} }, example: { male: 60, female: 40 } },
+                      genderRatio: { type: 'object', properties: { male: { type: 'integer' }, female: { type: 'integer' } }, example: { male: 60, female: 40 } },
                       ageRange: { type: 'string', example: '22-28' }
                     }
                   }
@@ -537,6 +537,8 @@ const options = {
           summary: 'Bir bağlantıya aid bütün söhbət tarixçəsini gətirir',
           security: [{ bearerAuth: [] }],
           parameters: [
+            { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 10 } },
             {
               name: 'connectionId',
               in: 'path',
@@ -892,6 +894,10 @@ const options = {
           tags: ['User'],
           summary: 'Hazırkı istifadəçinin blokladığı bütün şəxslərin siyahısını gətirir',
           security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 10 } }
+          ],
           responses: {
             '200': { description: 'Bloklanmış istifadəçilərin siyahısı' },
             '401': { description: 'Avtorizasiya xətası' }
@@ -998,11 +1004,15 @@ const options = {
           }
         }
       },
-       '/api/users/me/history': {
+      '/api/users/me/history': {
         get: {
           tags: ['User'],
           summary: 'Hazırkı istifadəçinin son check-in tarixçəsini gətirir',
           security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 10 } }
+          ],
           responses: { '200': { description: 'Check-in tarixçəsi' } }
         },
         delete: {
@@ -1061,6 +1071,10 @@ const options = {
           tags: ['Connection'],
           summary: 'Hazırkı istifadəçinin bütün bağlantılarının siyahısını gətirir',
           security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 10 } }
+          ],
           responses: {
             '200': { description: 'Bağlantıların siyahısı' },
             '401': { description: 'Avtorizasiya xətası' }
@@ -1309,7 +1323,12 @@ const options = {
           tags: ['Admin - User Management'],
           summary: 'Bir istifadəçinin bütün bağlantılarını (match) gətirir',
           security: [{ bearerAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
+            { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 10 } }
+          ],
           responses: { '200': { description: 'Success' } }
         }
       },
@@ -1318,7 +1337,11 @@ const options = {
           tags: ['Admin - User Management'],
           summary: 'Bir istifadəçiyə qarşı edilmiş bütün şikayətləri gətirir',
           security: [{ bearerAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
+            { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 10 } }
+          ],
           responses: { '200': { description: 'Success' } }
         }
       },
@@ -1327,7 +1350,11 @@ const options = {
           tags: ['Admin - User Management'],
           summary: 'Bir istifadəçinin son fəaliyyətini gətirir',
           security: [{ bearerAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'string' } },
+            { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 10 } }
+          ],
           responses: { '200': { description: 'Success' } }
         }
       },
@@ -1336,6 +1363,10 @@ const options = {
           tags: ['Admin - User Management'],
           summary: 'Banlanmış (deaktiv edilmiş) bütün istifadəçilərin siyahısını gətirir',
           security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 10 } }
+          ],
           responses: { '200': { description: 'Success' } }
         }
       },
@@ -1366,6 +1397,10 @@ const options = {
           tags: ['Admin'],
           summary: 'Bütün şikayətlərin siyahısını gətirir',
           security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 10 } }
+          ],
           responses: { '200': { description: 'Şikayətlərin siyahısı' } }
         }
       },
@@ -1397,12 +1432,17 @@ const options = {
           tags: ['Admin - Content'],
           summary: 'Bütün məkanların siyahısını gətirir',
           security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 10 } }
+          ],
           responses: { '200': { description: 'Success' } }
         },
         post: {
           tags: ['Admin - Content'],
           summary: 'Yeni məkan yaradır',
           security: [{ bearerAuth: [] }],
+
           requestBody: {
             required: true,
             content: {
@@ -1438,7 +1478,11 @@ const options = {
           tags: ['Admin - Content'],
           summary: 'Bir məkanın son 24 saatdakı aktivliyini (check-in sayını) gətirir',
           security: [{ bearerAuth: [] }],
-          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          parameters: [
+            { name: 'id', in: 'path', required: true, schema: { type: 'integer' } },
+            { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 10 } }
+          ],
           responses: { '200': { description: 'Success' } }
         }
       },

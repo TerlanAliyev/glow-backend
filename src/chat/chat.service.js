@@ -142,22 +142,30 @@ const createMessage = async (senderId, connectionId, data) => {
         }
     });
 };
-const createGroupMessage = async (senderId, venueId, content, imageUrl) => {
-    if (!content && !imageUrl) {
-        throw new Error("Mesajın mətni və ya şəkli olmalıdır.");
+
+const createGroupMessage = async (senderId, venueId, data) => {
+    // Gələn məlumatları vahid bir "data" obyektindən çıxarırıq
+    const { content, imageUrl, audioUrl, videoUrl } = data;
+
+    if (!content && !imageUrl && !audioUrl && !videoUrl) {
+        throw new Error("Mesaj boş ola bilməz.");
     }
 
     return prisma.venueGroupMessage.create({
         data: {
             content,
             imageUrl,
-            audioUrl, 
+            audioUrl,
             videoUrl,
             senderId,
             venueId: Number(venueId),
         },
         include: {
-            sender: { include: { profile: { include: { photos: true } } } }
+            sender: {
+                include: {
+                    profile: { include: { photos: true } }
+                }
+            }
         }
     });
 };

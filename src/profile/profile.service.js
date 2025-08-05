@@ -1,6 +1,7 @@
 
 const prisma = require('../config/prisma');
 const cloudinary = require('cloudinary').v2;
+const redis = require('../config/redis'); // Redis client-i import edirik
 
 const updateUserProfile = async (userId, profileData) => {
     const { bio, interestIds, university, city, personality, hideViewFootprints } = profileData;
@@ -13,8 +14,6 @@ const updateUserProfile = async (userId, profileData) => {
     if (hideViewFootprints !== undefined) {
         dataToUpdate.hideViewFootprints = hideViewFootprints; // Yeni seçim
     }
-    // DÜZƏLİŞ BURADADIR:
-    // Gələn "personality" dəyərini Enum tipinə uyğunlaşdırmaq üçün böyük hərflərə çeviririk.
     if (personality !== undefined) {
         dataToUpdate.personality = personality.toUpperCase(); // Məsələn, "Introvert" -> "INTROVERT"
     }
@@ -40,7 +39,13 @@ const updateUserProfile = async (userId, profileData) => {
         data: dataToUpdate,
         include: { interests: true, photos: true },
     });
-
+    const cacheKey = `user_profile:${userId}`;
+    try {
+        await redis.del(cacheKey);
+        console.log(`[CACHE INVALIDATION] İstifadəçi (${userId}) üçün keş təmizləndi.`);
+    } catch (error) {
+        console.error("Redis-dən silmə xətası:", error);
+    }
     return updatedProfile;
 };
 
@@ -74,7 +79,13 @@ const addPhotosToProfile = async (userId, files) => {
             });
         }
     }
-
+    const cacheKey = `user_profile:${userId}`;
+    try {
+        await redis.del(cacheKey);
+        console.log(`[CACHE INVALIDATION] İstifadəçi (${userId}) üçün keş təmizləndi.`);
+    } catch (error) {
+        console.error("Redis-dən silmə xətası:", error);
+    }
     return prisma.profile.findUnique({ where: { userId }, include: { photos: true } });
 };
 
@@ -123,7 +134,13 @@ const deletePhoto = async (userId, photoId) => {
             });
         }
     }
-
+    const cacheKey = `user_profile:${userId}`;
+    try {
+        await redis.del(cacheKey);
+        console.log(`[CACHE INVALIDATION] İstifadəçi (${userId}) üçün keş təmizləndi.`);
+    } catch (error) {
+        console.error("Redis-dən silmə xətası:", error);
+    }
     return { message: 'Şəkil uğurla silindi.' };
 };
 
@@ -168,20 +185,32 @@ const setPrimaryPhoto = async (userId, photoId) => {
             where: { id: photoIdNum },
             data: { isAvatar: true },
         });
-
+        const cacheKey = `user_profile:${userId}`;
+        try {
+            await redis.del(cacheKey);
+            console.log(`[CACHE INVALIDATION] İstifadəçi (${userId}) üçün keş təmizləndi.`);
+        } catch (error) {
+            console.error("Redis-dən silmə xətası:", error);
+        }
         return updatedPhoto;
     });
 };
 
 const updateUserPreferences = async (userId, preferences) => {
-    const { 
-        preferredMinAge, 
+    const {
+        preferredMinAge,
         preferredMaxAge,
         notifyOnNewSignal,
         notifyOnNewMatch,
-        notifyOnNewMessage 
+        notifyOnNewMessage
     } = preferences;
-
+    const cacheKey = `user_profile:${userId}`;
+    try {
+        await redis.del(cacheKey);
+        console.log(`[CACHE INVALIDATION] İstifadəçi (${userId}) üçün keş təmizləndi.`);
+    } catch (error) {
+        console.error("Redis-dən silmə xətası:", error);
+    }
     return prisma.profile.update({
         where: { userId: userId },
         data: {
@@ -201,6 +230,13 @@ const updateUserPreferences = async (userId, preferences) => {
 
 //Premium function to get profile and log view
 const getProfileViews = async (userId) => {
+     const cacheKey = `user_profile:${userId}`;
+    try {
+        await redis.del(cacheKey);
+        console.log(`[CACHE INVALIDATION] İstifadəçi (${userId}) üçün keş təmizləndi.`);
+    } catch (error) {
+        console.error("Redis-dən silmə xətası:", error);
+    }
     return prisma.profileView.findMany({
         where: { viewedId: userId },
         orderBy: { createdAt: 'desc' },
@@ -220,5 +256,5 @@ const getProfileViews = async (userId) => {
 module.exports = {
     updateUserProfile,
     addPhotosToProfile,
-    getProfileViews, deletePhoto, setPrimaryPhoto,updateUserPreferences
+    getProfileViews, deletePhoto, setPrimaryPhoto, updateUserPreferences
 };
