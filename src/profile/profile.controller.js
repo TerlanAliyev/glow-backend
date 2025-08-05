@@ -76,16 +76,43 @@ const updateMyPreferences = asyncHandler(async (req, res) => {
     const updatedProfile = await profileService.updateUserPreferences(req.user.userId, req.body);
     res.status(200).json({ message: 'Seçimləriniz uğurla yadda saxlanıldı.', profile: updatedProfile });
 });
-// Bunu da `module.exports`-ə əlavə edin
 //Premium function to get profile views
 const getMyProfileViews = asyncHandler(async (req, res) => {
     const views = await profileService.getProfileViews(req.user.userId);
     res.status(200).json(views);
 });
+// Function to request profile verification
+const requestVerification = asyncHandler(async (req, res) => {
+    if (!req.file) {
+        return res.status(400).json({ message: 'Verifikasiya üçün şəkil yüklənmədi.' });
+    }
+
+    const userId = req.user.userId;
+    const photoUrl = req.file.path; // Cloudinary-dən gələn URL
+
+    await profileService.requestProfileVerification(userId, photoUrl);
+
+    res.status(200).json({ message: 'Verifikasiya sorğunuz uğurla göndərildi. Administrator tərəfindən yoxlanıldıqdan sonra sizə bildiriş göndəriləcək.' });
+});
+
+const updateMyStatus = asyncHandler(async (req, res) => {
+    const { status } = req.body; // 'durationInHours' parametrini sildik
+    const userId = req.user.userId;
+
+    // Servisə artıq yalnız statusu göndəririk
+    const updatedProfile = await profileService.updateProfileStatus(userId, status);
+
+    res.status(200).json({
+        message: "Statusunuz uğurla yeniləndi!",
+        profile: updatedProfile
+    });
+});
+
 
 module.exports = {
     updateMyProfile,
     uploadAvatar,
     uploadPhotos,
-    getMyProfileViews,deletePhoto,setPrimaryPhoto,updateMyPreferences
+    getMyProfileViews,deletePhoto,setPrimaryPhoto,updateMyPreferences,
+    requestVerification,updateMyStatus
 };

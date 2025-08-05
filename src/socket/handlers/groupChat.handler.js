@@ -13,7 +13,12 @@ const registerGroupChatHandlers = (mainNamespace, socket) => {
             const senderId = socket.userId;
             const { venueId, content, imageUrl, audioUrl, videoUrl } = payload;
             const groupChatRoom = `group-chat-${venueId}`;
+            const senderProfile = await prisma.profile.findUnique({
+                where: { userId: senderId },
+                select: { isVerified: true }
+            });
 
+           
             if (content) {
                 if (profanityRegex.test(content)) {
                     console.log(`[MODERATION] İstifadəçi ${senderId} nalayiq ifadə işlətdi: "${content}"`);
@@ -26,7 +31,7 @@ const registerGroupChatHandlers = (mainNamespace, socket) => {
                     return socket.emit('receive_venue_group_message', systemWarningMessage);
                 }
             }
-            
+
             const newMessage = await chatService.createGroupMessage(senderId, venueId, { content, imageUrl, audioUrl, videoUrl });
             mainNamespace.to(groupChatRoom).emit('receive_venue_group_message', newMessage);
 

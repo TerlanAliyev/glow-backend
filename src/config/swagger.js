@@ -224,6 +224,37 @@ const options = {
           }
         }
       },
+      '/api/profile/me/status': {
+        patch: {
+          tags: ['Profile'],
+          summary: 'Hazırkı istifadəçinin 24 saatlıq statusunu təyin edir və ya təmizləyir',
+          description: "İstifadəçi öz anlıq niyyətini bildirmək üçün status təyin edə bilər. Status 24 saat aktiv qalır. Status mətni boş göndərilərsə, mövcud status silinir.",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    status: {
+                      type: 'string',
+                      description: "İstifadəçinin yeni status mətni. Boş göndərilərsə status silinər.",
+                      example: 'Bu axşamki konsert üçün buradayam!'
+                    }
+                    // DƏYİŞİKLİK: durationInHours sahəsi buradan silindi
+                  },
+                  required: ['status'] // Yalnız status məcburidir
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { description: 'Status uğurla yeniləndi' },
+            '401': { description: 'Avtorizasiya xətası' }
+          }
+        }
+      },
       '/api/profile/me/preferences': {
         patch: {
           tags: ['Profile'],
@@ -333,6 +364,37 @@ const options = {
             '200': { description: 'Profilə baxanların siyahısı' },
             '401': { description: 'Avtorizasiya xətası' },
             '403': { description: 'Premium abunəlik tələb olunur' }
+          }
+        }
+      },
+      '/api/profile/me/request-verification': {
+        post: {
+          tags: ['Profile'],
+          summary: 'Profilin təsdiqlənməsi üçün şəkil ilə sorğu göndərir',
+          description: "İstifadəçi, tətbiqin təyin etdiyi xüsusi bir pozada çəkilmiş şəkli bu endpoint-ə göndərərək profilinin təsdiqlənməsini istəyir. Uğurlu sorğudan sonra status 'PENDING' olaraq dəyişir.",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'multipart/form-data': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    verificationPhoto: {
+                      type: 'string',
+                      format: 'binary',
+                      description: 'Təsdiqləmə üçün tələb olunan xüsusi pozada çəkilmiş şəkil'
+                    }
+                  },
+                  required: ['verificationPhoto']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { description: 'Verifikasiya sorğunuz uğurla göndərildi' },
+            '400': { description: 'Şəkil yüklənmədi və ya artıq təsdiqlənmiş/gözləmədə olan sorğunuz var' },
+            '401': { description: 'Avtorizasiya xətası' }
           }
         }
       },
@@ -1033,6 +1095,22 @@ const options = {
           }
         }
       },
+      '/api/users/{userId}/badges': {
+        get: {
+          tags: ['Gamification'],
+          summary: 'Bir istifadəçinin qazandığı bütün nişanların siyahısını gətirir',
+          security: [{ bearerAuth: [] }],
+          parameters: [{
+            name: 'userId',
+            in: 'path',
+            required: true,
+            schema: { type: 'string' }
+          }],
+          responses: {
+            '200': { description: 'Nişanların siyahısı' }
+          }
+        }
+      },
       '/api/rewards/grant': {
         post: {
           tags: ['User Actions'], // Yeni bir teq yarada bilərik
@@ -1063,9 +1141,6 @@ const options = {
           }
         }
       },
-
-
-
       '/api/connections': {
         get: {
           tags: ['Connection'],
@@ -1356,6 +1431,81 @@ const options = {
             { name: 'limit', in: 'query', schema: { type: 'integer', default: 10 } }
           ],
           responses: { '200': { description: 'Success' } }
+        }
+      },
+      '/api/admin/verifications': {
+        get: {
+          tags: ['Admin - User Management'],
+          summary: 'Gözləmədə olan bütün profil təsdiqləmə sorğularını gətirir',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 10 } }
+          ],
+          responses: {
+            '200': { description: 'Gözləmədə olan sorğuların siyahısı' },
+            '403': { description: 'İcazə yoxdur' }
+          }
+        }
+      },
+      '/api/admin/verifications': {
+        get: {
+          tags: ['Admin - User Management'],
+          summary: 'Profil təsdiqləmə sorğularını gətirir (statusa görə filtrləmə ilə)',
+          security: [{ bearerAuth: [] }],
+          parameters: [
+            { name: 'page', in: 'query', schema: { type: 'integer', default: 1 } },
+            { name: 'limit', in: 'query', schema: { type: 'integer', default: 10 } },
+            {
+              name: 'status',
+              in: 'query',
+              description: "Statusa görə filtrlə. Mümkün dəyərlər: PENDING, APPROVED, REJECTED. Boş buraxılsa hamısı gəlir.",
+              schema: { type: 'string', enum: ['PENDING', 'APPROVED', 'REJECTED'] }
+            }
+          ],
+          responses: {
+            '200': { description: 'Sorğuların siyahısı' },
+            '403': { description: 'İcazə yoxdur' }
+          }
+        }
+      },
+      '/api/admin/verifications/{profileId}/status': {
+        patch: {
+          tags: ['Admin - User Management'],
+          summary: 'Bir profilin verifikasiya statusunu dəyişir',
+          description: "Bu endpoint adminə, səhvən təsdiqlənmiş sorğunu geri qaytarmaq və ya statusu birbaşa dəyişmək imkanı verir.",
+          security: [{ bearerAuth: [] }],
+          parameters: [{
+            name: 'profileId',
+            in: 'path',
+            required: true,
+            description: 'Statusu dəyişdiriləcək profilin ID-si',
+            schema: { type: 'string' } // ID-nin string olduğunu nəzərə alırıq
+          }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    status: {
+                      type: 'string',
+                      enum: ['PENDING', 'APPROVED', 'REJECTED'],
+                      example: 'REJECTED'
+                    }
+                  },
+                  required: ['status']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { description: 'Status uğurla dəyişdirildi' },
+            '400': { description: 'Yanlış status dəyəri göndərildi' },
+            '403': { description: 'İcazə yoxdur' },
+            '404': { description: 'Profil tapılmadı' }
+          }
         }
       },
       '/api/admin/users/banned': {
@@ -1649,6 +1799,79 @@ const options = {
           responses: {
             '2022': { description: 'Hesablama prosesi uğurla başladıldı' },
             '403': { description: 'İcazə yoxdur' }
+          }
+        }
+      },
+      '/api/admin/badges': {
+        get: {
+          tags: ['Admin - Gamification'],
+          summary: 'Sistemdəki bütün nişanları gətirir',
+          security: [{ bearerAuth: [] }],
+          responses: { '200': { description: 'Bütün nişanların siyahısı' } }
+        },
+        post: {
+          tags: ['Admin - Gamification'],
+          summary: 'Yeni bir nişan yaradır',
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    code: { type: 'string', example: 'SOCIAL_BUTTERFLY_1' },
+                    name: { type: 'string', example: 'Sosial Kəpənək' },
+                    description: { type: 'string', example: '10 fərqli istifadəçi ilə "match" ol' },
+                    iconUrl: { type: 'string', example: 'http://example.com/icon.png' }
+                  },
+                  required: ['code', 'name', 'description', 'iconUrl']
+                }
+              }
+            }
+          },
+          responses: { '201': { description: 'Nişan uğurla yaradıldı' } }
+        }
+      },
+      '/api/admin/badges/{id}': {
+        patch: {
+          tags: ['Admin - Gamification'],
+          summary: 'Mövcud bir nişanı yeniləyir',
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          // --- TAM VERSİYA BURADADIR ---
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    code: { type: 'string', example: 'SOCIAL_BUTTERFLY_1' },
+                    name: { type: 'string', example: 'Sosial Kəpənək' },
+                    description: { type: 'string', example: '10 fərqli istifadəçi ilə "match" ol' },
+                    iconUrl: { type: 'string', example: 'http://example.com/icon.png' }
+                  }
+                  // Qeyd: PATCH sorğusu olduğu üçün heç bir sahənin məcburi olmadığını göstərmək üçün
+                  // "required" massivini burada qeyd etmirik.
+                }
+              }
+            }
+          },
+          // --- TAM VERSİYA BİTDİ ---
+          responses: {
+            '200': { description: 'Nişan uğurla yeniləndi' },
+            '404': { description: 'Bu ID ilə nişan tapılmadı' }
+          }
+        },
+        delete: {
+          tags: ['Admin - Gamification'],
+          summary: 'Bir nişanı silir',
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          responses: {
+            '204': { description: 'Nişan uğurla silindi' },
+            '404': { description: 'Bu ID ilə nişan tapılmadı' }
           }
         }
       },

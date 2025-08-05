@@ -2,7 +2,7 @@
 const express = require('express');
 const { authenticateToken } = require('../middleware/auth.middleware');
 const { body } = require('express-validator');
-const { updateMyProfile,updateMyPreferences, uploadAvatar,uploadPhotos , getMyProfileViews,deletePhoto,setPrimaryPhoto} = require('./profile.controller');
+const { updateMyProfile,updateMyStatus,requestVerification,updateMyPreferences, uploadAvatar,uploadPhotos , getMyProfileViews,deletePhoto,setPrimaryPhoto} = require('./profile.controller');
 const { isPremium } = require('../middleware/premium.middleware');
 const upload = require('../upload/upload.service'); // Yeni upload servisini import edirik
 
@@ -23,7 +23,14 @@ router.post('/me/photos', authenticateToken, upload.array('photos', 2), uploadPh
 router.delete('/me/photos/:photoId', authenticateToken, deletePhoto);
 router.patch('/me/photos/:photoId/main', authenticateToken, setPrimaryPhoto);
 router.patch('/me/preferences', authenticateToken, updateMyPreferences);
-
+router.patch('/me/status', authenticateToken, updateMyStatus);
+// verification request
+router.post(
+    '/me/request-verification', 
+    authenticateToken, 
+    upload.single('verificationPhoto'), // "verificationPhoto" adlı tək fayl qəbul edir
+    requestVerification
+);
 
 //Premium function
 router.get('/me/views', authenticateToken, isPremium, getMyProfileViews);

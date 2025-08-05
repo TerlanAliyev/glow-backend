@@ -31,7 +31,10 @@ const {
     createIcebreaker,
     updateIcebreaker,
     deleteIcebreaker,
-    updateUserSubscription,updateUserContact,triggerVenueStatCalculation
+    updateUserSubscription,updateUserContact,triggerVenueStatCalculation,
+    getVerificationRequests, 
+    updateVerificationStatus,
+    getBadges, createBadge, updateBadge, deleteBadge
 
 } = require('./admin.controller');
 const { authenticateToken } = require('../middleware/auth.middleware');
@@ -113,8 +116,14 @@ router.patch('/users/:id/subscription', adminOnly, updateUserSubscription);
 
 router.post('/stats/calculate-venue-stats', adminOnly, triggerVenueStatCalculation);
 
+// User Verification
+router.get('/verifications', adminOnly, getVerificationRequests);
+router.patch('/verifications/:profileId/status', adminOnly, updateVerificationStatus);
 
-
-
+// === GAMIFICATION (BADGE) MANAGEMENT ===
+router.get('/badges', adminOnly, getBadges);
+router.post('/badges', adminOnly, createBadge);
+router.patch('/badges/:id', adminOnly, updateBadge);
+router.delete('/badges/:id', adminOnly, deleteBadge);
 
 module.exports = router;

@@ -134,7 +134,7 @@ const reportUser = async (reporterId, reportedId, reason) => {
 //Premium function to get profile and log view
 
 const getProfileAndLogView = async (targetUserId, viewerId) => {
-    
+
     // ADDIM 1: İstifadəçinin başqasının profilinə baxıb-baxmadığını yoxlayaq
     if (targetUserId !== viewerId) {
         // Əgər başqasının profilinə baxırsa, baxan şəxsin (viewer) məxfiliyini yoxlayaq
@@ -168,6 +168,11 @@ const getProfileAndLogView = async (targetUserId, viewerId) => {
                 include: {
                     photos: true,
                     interests: true
+                }
+            },
+            badges: { // YENİ BLOK
+                include: {
+                    badge: true // Hər qazanılmış nişanın öz məlumatını da gətir
                 }
             }
         }
@@ -261,19 +266,19 @@ const getCheckInHistory = async (userId, queryParams) => {
             orderBy: { createdAt: 'desc' },
             skip: skip,
             take: limit, // Artıq bu dəyər rəqəmdir
-            include: { 
-                venue: { 
-                    select: { name: true, address: true } 
-                } 
+            include: {
+                venue: {
+                    select: { name: true, address: true }
+                }
             }
         }),
         prisma.checkInHistory.count({ where })
     ]);
 
-    return { 
-        data: history, 
-        totalPages: Math.ceil(total / limit), 
-        currentPage: page 
+    return {
+        data: history,
+        totalPages: Math.ceil(total / limit),
+        currentPage: page
     };
 };
 
@@ -289,6 +294,6 @@ module.exports = {
     reportUser,
     getProfileAndLogView,
     deleteOwnAccount,
-    initiateAccountDeletion,deleteCheckInHistory,
+    initiateAccountDeletion, deleteCheckInHistory,
     getCheckInHistory,
 };

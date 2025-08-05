@@ -10,7 +10,16 @@ const registerPrivateChatHandlers = (mainNamespace, socket) => {
         try {
             const { connectionId, content, imageUrl, audioUrl } = payload;
             const senderId = socket.userId;
-
+            const senderProfile = await prisma.profile.findUnique({
+                where: { userId: senderId },
+                select: { isVerified: true }
+            });
+            if (!senderProfile.isVerified) {
+                return socket.emit('error', {
+                    message: 'Mesaj göndərmək üçün profilinizi təsdiqləməlisiniz.',
+                    errorCode: 'VERIFICATION_REQUIRED'
+                });
+            }
             const connection = await prisma.connection.findFirst({
                 where: { id: connectionId, OR: [{ userAId: senderId }, { userBId: senderId }] }
             });
@@ -21,7 +30,7 @@ const registerPrivateChatHandlers = (mainNamespace, socket) => {
             const newMessage = await chatService.createMessage(senderId, connectionId, { content, imageUrl, audioUrl });
 
             const receiverId = connection.userAId === senderId ? connection.userBId : connection.userAId;
-            
+
             // Mesajı hər iki tərəfə real-zamanlı olaraq göndəririk
             mainNamespace.to(senderId).emit('receive_message', newMessage);
             mainNamespace.to(receiverId).emit('receive_message', newMessage);

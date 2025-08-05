@@ -1,6 +1,7 @@
 const prisma = require('../../config/prisma');
-const redis = require('../../config/redis'); 
+const redis = require('../../config/redis');
 const { createAdminLog } = require('./audit.service'); // Diqqət: audit servisinə istinad edirik
+const { createAndSendNotification } = require('../../notification/notification.service');
 
 
 const getUsersList = async () => {
@@ -237,7 +238,7 @@ const getUserActivity = async (userId) => {
 
 const getBannedUsers = async (queryParams) => {
     const { page = 1, limit = 10 } = queryParams;
-    
+
     const cacheKey = `admin:banned_users:page:${page}:limit:${limit}`;
     try {
         const cachedData = await redis.get(cacheKey);
@@ -255,14 +256,14 @@ const getBannedUsers = async (queryParams) => {
         prisma.user.findMany({ where, include: { profile: true, role: true }, orderBy: { updatedAt: 'desc' }, skip, take: parseInt(limit) }),
         prisma.user.count({ where })
     ]);
-    
+
     const data = users.map(u => { delete u.password; return u; });
     const result = { data, totalPages: Math.ceil(total / parseInt(limit)), currentPage: parseInt(page) };
 
     try {
         await redis.set(cacheKey, JSON.stringify(result), 'EX', 3600); // 1 saatlıq keş
     } catch (error) { console.error("Redis-ə yazma xətası:", error); }
-    
+
     return result;
 };
 
@@ -338,6 +339,103 @@ const updateUserSubscription = async (userId, subscriptionType) => {
     });
 };
 
+// İstifadəçi təsdiqləmə xidmətləri
+const getVerificationRequests = async (queryParams) => {
+    let page = parseInt(queryParams.page, 10) || 1;
+    let limit = parseInt(queryParams.limit, 10) || 10;
+    const skip = (page - 1) * limit;
+
+    // --- YENİ MƏNTİQ: Statusa görə filtrləmə ---
+    const { status } = queryParams;
+    const where = {};
+    // VerificationStatus Enum-dakı dəyərləri yoxlayırıq
+    if (status && ['PENDING', 'APPROVED', 'REJECTED'].includes(status.toUpperCase())) {
+        where.verificationStatus = status.toUpperCase();
+    }
+    // Əgər status verilməyibsə, hamısını göstərir.
+
+    const [profiles, total] = await prisma.$transaction([
+        prisma.profile.findMany({
+            where,
+            include: {
+                user: { select: { id: true, email: true, profile: { select: { name: true } } } }
+            },
+            orderBy: { updatedAt: 'desc' },
+            skip,
+            take: limit,
+        }),
+        prisma.profile.count({ where })
+    ]);
+
+    return {
+        data: profiles,
+        totalPages: Math.ceil(total / limit),
+        currentPage: page,
+    };
+};
+
+const updateVerificationStatus = async (profileId, newStatus, adminId) => {
+    // Yeni statusun Enum dəyərlərinə uyğun olduğunu yoxlayırıq
+    if (!['PENDING', 'APPROVED', 'REJECTED'].includes(newStatus)) {
+        const error = new Error('Yanlış status dəyəri. Mümkün dəyərlər: PENDING, APPROVED, REJECTED.');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const profile = await prisma.profile.findUnique({
+        where: { id: profileId }
+    });
+    if (!profile) {
+        const error = new Error('Profil tapılmadı.');
+        error.statusCode = 404;
+        throw error;
+    }
+
+    const dataToUpdate = {
+        verificationStatus: newStatus,
+        isVerified: newStatus === 'APPROVED',
+        provisionalSignalsUsed: 0 // Sayğacı sıfırlayırıq
+    };
+
+    // 1. Profili BİR DƏFƏ yeniləyirik və nəticəni 'updatedProfile'-da saxlayırıq
+    const updatedProfile = await prisma.profile.update({
+        where: { id: profileId },
+        data: dataToUpdate,
+    });
+
+    // 2. Bildiriş məntiqini işə salırıq
+   if (newStatus === 'APPROVED') {
+        await createAndSendNotification(
+            updatedProfile.userId,
+            'VERIFICATION_APPROVED',
+            'Təbriklər, profiliniz təsdiqləndi! İndi Lyra-nın bütün imkanlarından yararlana bilərsiniz. ✨',
+            { profileId: updatedProfile.id.toString() }
+        );
+    } else if (newStatus === 'REJECTED') { // YENİ BLOK
+        await createAndSendNotification(
+            updatedProfile.userId,
+            'VERIFICATION_REJECTED',
+            'Təəssüf ki, verifikasiya sorğunuz təsdiqlənmədi. Zəhmət olmasa, şəkil tələblərinə uyğun yeni bir şəkil göndərin.',
+            { profileId: updatedProfile.id.toString() } 
+        );
+    }
+
+    
+    // 3. Admin hərəkətini loglayırıq
+    await createAdminLog(adminId, 'USER_VERIFICATION_STATUS_CHANGED', {
+        targetUserId: profile.userId, // 'profile' obyektini istifadə edirik
+        newStatus: newStatus
+    });
+
+    // 4. İstifadəçi keşini təmizləyirik
+    const cacheKey = `user_profile:${profile.userId}`;
+    await redis.del(cacheKey).catch(err => console.error("Redis-dən silmə xətası:", err));
+
+    return { message: `Profilin verifikasiya statusu uğurla '${newStatus}' olaraq dəyişdirildi.` };
+};
+
+
+
 module.exports = {
     getUsers,
     getRoles,
@@ -350,5 +448,8 @@ module.exports = {
     deleteUser,
     updateUserContact,
     getUsersList,
-    updateUserSubscription
+    updateUserSubscription,
+    getVerificationRequests,
+    updateVerificationStatus,
+
 };

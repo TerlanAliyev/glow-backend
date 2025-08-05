@@ -182,7 +182,12 @@ const getUserProfileById = async (userId) => {
         where: { id: userId },
         include: {
           profile: { include: { photos: true, interests: true } },
-          role: true
+          role: true,
+           badges: { // YENİ BLOK
+              include: {
+                  badge: true
+              }
+          }
         },
     });
     

@@ -12,8 +12,8 @@ const authLimiter = rateLimit({
 
 // Digər bütün API-lər üçün ümumi, daha yumşaq limit
 const generalLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 dəqiqə
-    max: 100, // hər IP üçün 15 dəqiqədə 100 sorğu
+    windowMs: 59 * 60 * 1000, // 15 dəqiqə
+    max: 10000, // hər IP üçün 15 dəqiqədə 100 sorğu
     message: 'Çox sayda sorğu göndərildi. Zəhmət olmasa, bir az gözləyin.',
     standardHeaders: true,
     legacyHeaders: false,

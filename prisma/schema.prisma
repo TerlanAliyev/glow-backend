@@ -43,6 +43,13 @@ enum IcebreakerCategory {
   NIGHTLIFE   // Barlar və gecə klubları üçün
   DEEP_TALK   // Dərin söhbətlər üçün
 }
+enum VerificationStatus {
+  NOT_SUBMITTED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
 model User {
   id              String          @id @default(uuid())
   email           String          @unique
@@ -82,6 +89,7 @@ model User {
   refreshTokens RefreshToken[]
   groupMessageReactions GroupMessageReaction[] // Bu sətri əlavə edin
   checkInHistory CheckInHistory[]
+  badges             UserBadge[] // YENİ ƏLAQƏ
 
 }
 
@@ -106,6 +114,15 @@ model Profile {
   notifyOnNewSignal    Boolean @default(true)
   notifyOnNewMatch     Boolean @default(true)
   notifyOnNewMessage   Boolean @default(true)
+  isVerified           Boolean              @default(false)
+  verificationStatus   VerificationStatus   @default(NOT_SUBMITTED)
+  verificationPhotoUrl String?
+  createdAt            DateTime             @default(now())
+  updatedAt            DateTime?          
+  provisionalSignalsUsed Int                  @default(0)
+  currentStatus        String?
+  statusExpiresAt      DateTime?
+
 }
 
 model Category {
@@ -384,4 +401,24 @@ model CheckInHistory {
 
   venueId   Int
   venue     Venue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
+}
+
+model Badge {
+  id          Int        @id @default(autoincrement())
+  code        String     @unique // 'SOCIAL_BUTTERFLY_1', 'EXPLORER_1'
+  name        String
+  description String
+  iconUrl     String
+  users       UserBadge[]
+  createdAt   DateTime   @default(now())
+}
+
+model UserBadge {
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
+  badge     Badge    @relation(fields: [badgeId], references: [id], onDelete: Cascade)
+  badgeId   Int
+  createdAt DateTime @default(now())
+
+  @@id([userId, badgeId]) // Birləşmiş unikal açar
 }

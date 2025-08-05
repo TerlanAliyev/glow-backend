@@ -26,6 +26,7 @@ const adminRouter = require('./src/admin/admin.router'); // YENİ İMPORT
 const purchaseRouter = require('./src/purchase/purchase.router');
 const rewardsRouter = require('./src/rewards/rewards.router');
 const { sendReEngagementNotifications,calculateVenueStatistics } = require('./src/scheduler/scheduler.service');
+const gamificationRouter = require('./src/gamification/gamification.router');
 
 const app = express();
 const server = http.createServer(app); 
@@ -62,6 +63,7 @@ app.use('/api/feedback', feedbackRouter); // YENİ ROUTER-İ QOŞURUQ
 app.use('/api/admin', adminRouter); // Admin routerini qoşuruq
 app.use('/api/purchase', purchaseRouter);
 app.use('/api/rewards', rewardsRouter);
+app.use('/api', gamificationRouter); // və ya '/api/gamification'
 
 
 app.get('/', (req, res) => {

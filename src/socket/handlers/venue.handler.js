@@ -4,7 +4,7 @@ const prisma = require('../../config/prisma');
 
 const registerVenueHandlers = (mainNamespace, socket) => {
     // Bu dəyişəni funksiyanın içində saxlayırıq ki, hər qoşulan istifadəçinin öz otaq məlumatı olsun
-    let currentVenueRoom = null; 
+    let currentVenueRoom = null;
 
     const joinVenue = async (venueId, filters = {}) => {
         try {
@@ -14,15 +14,15 @@ const registerVenueHandlers = (mainNamespace, socket) => {
             const [joiningUserProfile, connections] = await Promise.all([
                 prisma.profile.findUnique({
                     where: { userId: socket.userId },
-                    include: { 
-                        interests: true, 
-                        photos: true, 
+                    include: {
+                        interests: true,
+                        photos: true,
                         _count: { select: { photos: true } },
                         user: { select: { subscription: true } }
                     },
                 }),
-                prisma.connection.findMany({ 
-                    where: { OR: [{ userAId: socket.userId }, { userBId: socket.userId }] } 
+                prisma.connection.findMany({
+                    where: { OR: [{ userAId: socket.userId }, { userBId: socket.userId }] }
                 }),
             ]);
 
@@ -46,7 +46,7 @@ const registerVenueHandlers = (mainNamespace, socket) => {
             socket.join(roomName);
             currentVenueRoom = roomName;
             socket.join(`group-chat-${venueId}`);
-            
+
             // ADDIM 4: FİLTRLƏRƏ UYĞUN DİGƏR İSTİFADƏÇİLƏRİ TAPAQ
             const connectedUserIds = new Set(connections.map(conn => conn.userAId === socket.userId ? conn.userBId : conn.userAId));
             const whereConditions = {
@@ -55,7 +55,7 @@ const registerVenueHandlers = (mainNamespace, socket) => {
                 isIncognito: false,
                 user: { profile: {} }
             };
-            
+
             const finalFilters = {
                 minAge: filters.minAge || joiningUserProfile.preferredMinAge,
                 maxAge: filters.maxAge || joiningUserProfile.preferredMaxAge,
@@ -64,17 +64,17 @@ const registerVenueHandlers = (mainNamespace, socket) => {
 
             if (finalFilters.minAge) whereConditions.user.profile.age = { gte: Number(finalFilters.minAge) };
             if (finalFilters.maxAge) whereConditions.user.profile.age = { ...whereConditions.user.profile.age, lte: Number(finalFilters.maxAge) };
-            
+
             const otherSessionsInRoom = await prisma.activeSession.findMany({
                 where: whereConditions,
-                include: { 
-                    user: { 
-                        include: { 
+                include: {
+                    user: {
+                        include: {
                             profile: { include: { interests: true, photos: true } },
                             // Düzəliş: Hər bir istifadəçinin abunəlik statusunu da gətiririk
                             // Bu sorğu yuxarıdakı user include-u ilə birləşdirilməlidir, lakin aydınlıq üçün belə saxlayıram
-                        } 
-                    } 
+                        }
+                    }
                 }
             });
 
@@ -83,22 +83,27 @@ const registerVenueHandlers = (mainNamespace, socket) => {
                 if (!profileA || !profileB) return 0;
                 let score = 0;
                 if (profileA.interests && profileB.interests) {
-                  const commonInterests = profileA.interests.filter(i => profileB.interests.some(oi => oi.id === i.id));
-                  score += commonInterests.length * 10;
+                    const commonInterests = profileA.interests.filter(i => profileB.interests.some(oi => oi.id === i.id));
+                    score += commonInterests.length * 10;
                 }
                 if (profileA.university && profileA.university === profileB.university) score += 20;
                 return score;
             };
 
             const compassData = otherSessionsInRoom.map(session => {
-                 // Düzəliş: Hər bir istifadəçinin abunəlik statusunu da gətiririk
                 const userSubscription = session.user.subscription; // Bu məlumat üçün 'include' düzgün olmalıdır
+                let activeStatus = null;
+                if (session.user.profile.currentStatus && session.user.profile.statusExpiresAt > new Date()) {
+                    activeStatus = session.user.profile.currentStatus;
+                }
                 return {
                     userId: session.userId,
                     name: session.user.profile.name,
-                    subscription: userSubscription, 
+                    subscription: userSubscription,
                     avatarUrl: session.user.profile.photos?.find(p => p.isAvatar)?.url || null,
-                    compatibilityScore: calculateScore(joiningUserProfile, session.user.profile)
+                    compatibilityScore: calculateScore(joiningUserProfile, session.user.profile),
+                    currentStatus: activeStatus
+
                 };
             });
             socket.emit('compass_update', compassData);
@@ -112,7 +117,7 @@ const registerVenueHandlers = (mainNamespace, socket) => {
                 compatibilityScore: 0 // Bu fərdi hesablanmalıdır, sadəlik üçün 0 qoyulub
             };
             socket.to(roomName).emit('user_joined', payloadForOtherUser);
-            
+
             console.log(`--- [SUCCESS] join_venue prosesi ${socket.userId} üçün tamamlandı. ---\n`);
 
         } catch (error) {

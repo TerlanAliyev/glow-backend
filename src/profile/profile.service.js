@@ -223,11 +223,6 @@ const updateUserPreferences = async (userId, preferences) => {
     });
 };
 
-
-
-
-
-
 //Premium function to get profile and log view
 const getProfileViews = async (userId) => {
      const cacheKey = `user_profile:${userId}`;
@@ -252,9 +247,67 @@ const getProfileViews = async (userId) => {
     });
 };
 
+//  to request profile verification
+const requestProfileVerification = async (userId, photoUrl) => {
+    // İstifadəçinin profilini tapırıq
+    const profile = await prisma.profile.findUnique({
+        where: { userId: userId },
+    });
+
+    if (!profile) {
+        const error = new Error('Profil tapılmadı.');
+        error.statusCode = 404;
+        throw error;
+    }
+
+    // Əgər artıq təsdiqlənibsə və ya yoxlamadadırsa, təkrar sorğuya icazə vermirik
+    if (profile.verificationStatus === 'APPROVED' || profile.verificationStatus === 'PENDING') {
+        const error = new Error('Sizin artıq təsdiqlənmiş və ya gözləmədə olan bir sorğunuz var.');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    return prisma.profile.update({
+        where: { userId: userId },
+        data: {
+            verificationPhotoUrl: photoUrl,
+            verificationStatus: 'PENDING', // Statusu "Gözləmədə" olaraq təyin edirik
+        },
+    });
+};
+
+
+const updateProfileStatus = async (userId, status) => {
+    let statusExpiresAt = null;
+    let finalStatus = status;
+
+    // Əgər status mətni varsa, bitmə tarixi təyin edirik
+    // Əgər status boşdursa, həm statusu, həm də bitmə tarixini sıfırlayırıq
+    if (finalStatus && finalStatus.trim() !== "") {
+        statusExpiresAt = new Date(new Date().getTime() + 24 * 60 * 60 * 1000);
+    } else {
+        finalStatus = null; // Statusu tamamilə təmizlə
+    }
+
+    const updatedProfile = await prisma.profile.update({
+        where: { userId: userId },
+        data: {
+            currentStatus: finalStatus,
+            statusExpiresAt: statusExpiresAt,
+        }
+    });
+
+    // Profil keşini təmizləyirik
+    const cacheKey = `user_profile:${userId}`;
+    await redis.del(cacheKey).catch(err => console.error("Redis-dən silmə xətası:", err));
+
+    return updatedProfile;
+};
+
 
 module.exports = {
     updateUserProfile,
     addPhotosToProfile,
-    getProfileViews, deletePhoto, setPrimaryPhoto, updateUserPreferences
+    getProfileViews, deletePhoto, setPrimaryPhoto, updateUserPreferences,
+    requestProfileVerification,updateProfileStatus
 };

@@ -6,7 +6,8 @@ const contentService = require('./services/content.service');
 const moderationService = require('./services/moderation.service');
 const marketingService = require('./services/marketing.service');
 const auditService = require('./services/audit.service');
-const { icebreakerQuestion } = require('../config/prisma');
+const icebreakerService = require('./services/icebreakers.service'); 
+const gamificationService = require('../gamification/gamification.service');
 
 const asyncHandler = (fn) => (req, res, next) => {
     Promise.resolve(fn(req, res, next)).catch(next);
@@ -115,7 +116,8 @@ const deleteUser = asyncHandler(async (req, res) => {
 
 //Reports
 const getReports = asyncHandler(async (req, res) => {
-    const reports = await moderationService.getReports();
+    // DÜZƏLİŞ: req.query parametrlərini servisə ötürürük
+    const reports = await moderationService.getReports(req.query); 
     res.status(200).json(reports);
 });
 
@@ -253,24 +255,28 @@ const getBroadcastHistory = asyncHandler(async (req, res) => {
 
 // Icebreaker Questions
 const getIcebreakers = asyncHandler(async (req, res) => {
-    const questions = await icebreakerQuestion.getIcebreakers();
+    // DÜZƏLİŞ: Funksiyanı icebreakerService-dən çağırırıq
+    const questions = await icebreakerService.getIcebreakers();
     res.status(200).json(questions);
 });
 
 const createIcebreaker = asyncHandler(async (req, res) => {
-    // req.body-dən həm 'text', həm də 'category'-ni alırıq
-    const newQuestion = await icebreakerQuestion.createIcebreaker(req.body);
+    // DÜZƏLİŞ: Funksiyanı icebreakerService-dən çağırırıq
+    const newQuestion = await icebreakerService.createIcebreaker(req.body.text, req.body.category);
     res.status(201).json(newQuestion);
 });
+
 const updateIcebreaker = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const updatedQuestion = await icebreakerQuestion.updateIcebreaker(id, req.body);
+    // DÜZƏLİŞ: Funksiyanı icebreakerService-dən çağırırıq
+    const updatedQuestion = await icebreakerService.updateIcebreaker(id, req.body);
     res.status(200).json(updatedQuestion);
 });
 
 const deleteIcebreaker = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    await icebreakerQuestion.deleteIcebreaker(id);
+    // DÜZƏLİŞ: Funksiyanı icebreakerService-dən çağırırıq
+    await icebreakerService.deleteIcebreaker(id);
     res.status(204).send();
 });
 
@@ -286,6 +292,48 @@ const triggerVenueStatCalculation = asyncHandler(async (req, res) => {
     res.status(202).json(result); // 202 Accepted - prosesin başladığını bildirir
 });
 
+
+const getVerificationRequests = asyncHandler(async (req, res) => {
+    const requests = await userManagementService.getVerificationRequests(req.query);
+    res.status(200).json(requests);
+});
+
+const updateVerificationStatus = asyncHandler(async (req, res) => {
+    const { profileId } = req.params;
+    const { status } = req.body; // Body-dən yeni statusu alırıq
+
+    if (!status) {
+        return res.status(400).json({ message: 'Yeni status təqdim edilməlidir.' });
+    }
+
+    const adminId = req.user.userId;
+    const result = await userManagementService.updateVerificationStatus(profileId, status.toUpperCase(), adminId);
+    res.status(200).json(result);
+});
+
+// === GAMIFICATION (BADGE) MANAGEMENT ===
+const getBadges = asyncHandler(async (req, res) => {
+    const badges = await gamificationService.getAllBadges();
+    res.status(200).json(badges);
+});
+
+const createBadge = asyncHandler(async (req, res) => {
+    const newBadge = await gamificationService.createBadge(req.body);
+    res.status(201).json(newBadge);
+});
+
+const updateBadge = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const updatedBadge = await gamificationService.updateBadge(id, req.body);
+    res.status(200).json(updatedBadge);
+});
+
+const deleteBadge = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    await gamificationService.deleteBadge(id);
+    res.status(204).send();
+});
+
 module.exports = {
      getUsers, updateUserRole, updateUserStatus, getReports, updateReportStatus,
     getVenues, createVenue, updateVenue, deleteVenue,
@@ -299,5 +347,7 @@ module.exports = {
     deleteCategory,getBannedUsers,
     deleteUser,
     getIcebreakers, createIcebreaker, updateIcebreaker, deleteIcebreaker,
-    updateUserSubscription,updateUserContact,triggerVenueStatCalculation
+    updateUserSubscription,updateUserContact,triggerVenueStatCalculation,
+    getVerificationRequests, updateVerificationStatus,
+    getBadges, createBadge, updateBadge, deleteBadge
 };
