@@ -1,6 +1,0 @@
-
-# Bağımlılıklar
-node_modules
-
-# Ortam değişkenleri ve gizli bilgiler
-.env
