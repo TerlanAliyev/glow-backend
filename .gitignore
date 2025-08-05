@@ -1,0 +1,8 @@
+
+# Bağımlılıklar
+node_modules
+
+# Ortam değişkenleri ve gizli bilgiler
+.env
+# Google/Firebase service account key
+serviceAccountKey.json
