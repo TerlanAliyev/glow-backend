@@ -50,10 +50,46 @@ const reportUser = asyncHandler(async (req, res, next) => {
     }
 });
 
+//Premium function to get profile and log view
+const getUserProfile = asyncHandler(async (req, res) => {
+    const targetUserId = req.params.id;
+    const viewerId = req.user.userId;
+    const userProfile = await userService.getProfileAndLogView(targetUserId, viewerId);
+    res.status(200).json(userProfile);
+});
+
+const deleteMe = asyncHandler(async (req, res) => {
+    const { otp } = req.body;
+    if (!otp) {
+        return res.status(400).json({ message: 'Təsdiq kodu (otp) təqdim edilməlidir.' });
+    }
+    const userId = req.user.userId;
+    await userService.deleteOwnAccount(userId, otp);
+    res.status(200).json({ message: 'Hesabınız və bütün məlumatlarınız uğurla silindi.' });
+});
+
+const initiateDeleteMe = asyncHandler(async (req, res) => {
+    await userService.initiateAccountDeletion(req.user.userId);
+    res.status(200).json({ message: 'Əgər hesabınız mövcuddursa, hesabınızı silmək üçün təsdiq kodu e-poçt ünvanınıza göndərildi.' });
+});
+const getMyHistory = asyncHandler(async (req, res) => {
+    const history = await userService.getCheckInHistory(req.user.userId, req.query);
+    res.status(200).json(history);
+});
+
+const deleteMyHistory = asyncHandler(async (req, res) => {
+    await userService.deleteCheckInHistory(req.user.userId);
+    res.status(200).json({ message: 'Məkan tarixçəniz uğurla təmizləndi.' });
+});
 module.exports = {
     blockUser,
     unblockUser,
     getBlockedUsers,
     reportUser,
+    getUserProfile,
+    deleteMe,
+    initiateDeleteMe,
+    getMyHistory,
+    deleteMyHistory
 };
 

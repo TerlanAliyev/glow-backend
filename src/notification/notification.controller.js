@@ -20,7 +20,11 @@ const registerDeviceController = async (req, res, next) => {
 };
 const getMyNotificationsController = asyncHandler(async (req, res) => {
     const userId = req.user.userId;
-    const notifications = await notificationService.getNotificationsForUser(userId);
+    // URL-dən gələn səhifə və limit dəyərlərini alırıq (məs: /api/notification?page=2&limit=10)
+    const page = parseInt(req.query.page) || 1;
+    const limit = parseInt(req.query.limit) || 20;
+
+    const notifications = await notificationService.getNotificationsForUser(userId, page, limit);
     res.status(200).json(notifications);
 });
 const markNotificationAsReadController = asyncHandler(async (req, res) => {

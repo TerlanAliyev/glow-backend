@@ -10,17 +10,8 @@ const getAllInterests = async (req, res) => {
   }
 };
 
-const seedInterests = async (req, res) => {
-  try {
-    await interestService.seedDatabaseWithInterests();
-    res.status(201).json({ message: 'Databaza test maraqları ilə uğurla dolduruldu!' });
-  } catch (error) {
-    console.error(error);
-    res.status(500).json({ message: 'Databazanı doldurmaq mümkün olmadı.' });
-  }
-};
+
 
 module.exports = {
   getAllInterests,
-  seedInterests,
 };

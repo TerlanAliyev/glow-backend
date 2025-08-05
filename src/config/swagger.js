@@ -143,6 +143,67 @@ const options = {
           }
         }
       },
+      '/api/auth/me/initiate-email-change': {
+        post: {
+          tags: ['Auth'],
+          summary: 'E-poçt dəyişikliyi prosesini başlayır və yeni ünvana OTP göndərir',
+          description: "İstifadəçi yeni e-poçt ünvanını göndərir. Sistem həmin e-poçtun istifadədə olub-olmadığını yoxlayır və əgər boşdursa, təsdiq üçün OTP kodu göndərir.",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    newEmail: {
+                      type: 'string',
+                      format: 'email',
+                      example: 'yeni.email@example.com'
+                    }
+                  },
+                  required: ['newEmail']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { description: 'Təsdiq kodu yeni e-poçt ünvanınıza göndərildi' },
+            '401': { description: 'Avtorizasiya xətası' },
+            '409': { description: 'Bu e-poçt ünvanı artıq istifadə olunur' }
+          }
+        }
+      },
+      '/api/auth/me/confirm-email-change': {
+        post: {
+          tags: ['Auth'],
+          summary: 'OTP ilə e-poçt dəyişikliyini təsdiqləyir',
+          description: "İstifadəçi yeni e-poçtuna gələn OTP kodunu bu endpoint-ə göndərərək dəyişikliyi təsdiqləyir.",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    otp: {
+                      type: 'string',
+                      example: '123456'
+                    }
+                  },
+                  required: ['otp']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { description: 'E-poçt ünvanınız uğurla yeniləndi' },
+            '400': { description: 'Təsdiq kodu yanlışdır və ya vaxtı bitib' },
+            '401': { description: 'Avtorizasiya xətası' }
+          }
+        }
+      },
       // Profile Paths
       '/api/profile/me': {
         patch: {
@@ -163,10 +224,39 @@ const options = {
           }
         }
       },
-      '/api/profile/me/avatar': {
+      '/api/profile/me/preferences': {
         patch: {
           tags: ['Profile'],
-          summary: 'Hazırkı istifadəçinin profil şəklini (avatar) yükləyir',
+          summary: 'İstifadəçinin kəşfiyyat filteri seçimlərini yadda saxlayır',
+          description: "Bu endpoint, istifadəçinin Kompas üçün standart filterlərini (məsələn, yaş aralığı) təyin etməsi üçün istifadə olunur.",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    preferredMinAge: { type: 'integer', example: 22 },
+                    preferredMaxAge: { type: 'integer', example: 30 },
+                    notifyOnNewSignal: { type: 'boolean', example: true },
+                    notifyOnNewMatch: { type: 'boolean', example: true },
+                    notifyOnNewMessage: { type: 'boolean', example: false }
+                  },
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { description: 'Seçimlər uğurla yadda saxlanıldı' },
+            '401': { description: 'Avtorizasiya xətası' }
+          }
+        }
+      },
+      '/api/profile/me/photos': {
+        post: {
+          tags: ['Profile'],
+          summary: 'Hazırkı istifadəçinin profilinə yeni şəkillər yükləyir (maksimum 2 ədəd)',
           security: [{ bearerAuth: [] }],
           requestBody: {
             required: true,
@@ -176,9 +266,13 @@ const options = {
                 schema: {
                   type: 'object',
                   properties: {
-                    avatar: {
-                      type: 'string',
-                      format: 'binary' // Bu, fayl olduğunu bildirir
+                    // router-də təyin etdiyimiz ad ("photos") ilə eyni olmalıdır
+                    photos: {
+                      type: 'array',
+                      items: {
+                        type: 'string',
+                        format: 'binary' // Bu, fayl olduğunu bildirir
+                      }
                     }
                   }
                 }
@@ -186,12 +280,90 @@ const options = {
             }
           },
           responses: {
-            '200': { description: 'Profil şəkli uğurla yeniləndi' },
+            '200': { description: 'Şəkillər uğurla yükləndi' },
             '400': { description: 'Heç bir fayl yüklənmədi' },
             '401': { description: 'Avtorizasiya xətası' }
           }
         }
       },
+      '/api/profile/me/photos/{photoId}': {
+        delete: {
+          tags: ['Profile'],
+          summary: 'Hazırkı istifadəçinin profilindən bir şəkli silir',
+          security: [{ bearerAuth: [] }],
+          parameters: [{
+            name: 'photoId',
+            in: 'path',
+            required: true,
+            description: 'Silinəcək şəkilin ID-si',
+            schema: { type: 'integer' }
+          }],
+          responses: {
+            '200': { description: 'Şəkil uğurla silindi' },
+            '401': { description: 'Avtorizasiya xətası' },
+            '404': { description: 'Şəkil tapılmadı və ya bu şəkli silməyə icazəniz yoxdur' }
+          }
+        }
+      },
+      '/api/profile/me/photos/{photoId}/main': {
+        patch: {
+          tags: ['Profile'],
+          summary: 'Seçilmiş bir şəkli əsas profil şəkli təyin edir',
+          security: [{ bearerAuth: [] }],
+          parameters: [{
+            name: 'photoId',
+            in: 'path',
+            required: true,
+            description: 'Əsas təyin ediləcək şəkilin ID-si',
+            schema: { type: 'integer' }
+          }],
+          responses: {
+            '200': { description: 'Əsas şəkil uğurla dəyişdirildi' },
+            '401': { description: 'Avtorizasiya xətası' },
+            '404': { description: 'Şəkil tapılmadı və ya bu əməliyyata icazəniz yoxdur' }
+          }
+        }
+      },
+      '/api/profile/me/views': {
+        get: {
+          tags: ['Profile', 'Premium'],
+          summary: 'PREMIUM: Mənim profilimə baxanların siyahısını gətirir.Premium istifadəçilər üçün',
+          security: [{ bearerAuth: [] }],
+          responses: {
+            '200': { description: 'Profilə baxanların siyahısı' },
+            '401': { description: 'Avtorizasiya xətası' },
+            '403': { description: 'Premium abunəlik tələb olunur' }
+          }
+        }
+      },
+      //Purchese Paths
+      '/api/purchase/daily-premium': {
+        post: {
+          tags: ['Premium'],
+          summary: 'Gündəlik (24 saatlıq) premium statusunu aktivləşdirir',
+          description: 'Mobil tətbiq, istifadəçi gündəlik premiumu aldıqdan sonra Apple/Google-dan aldığı qəbzi (receipt) bu endpoint-ə göndərir.',
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    receipt: { type: 'string', example: 'store_receipt_data_here' }
+                  },
+                  required: ['receipt']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { description: 'Gündəlik premium uğurla aktivləşdirildi' },
+            '401': { description: 'Avtorizasiya xətası' }
+          }
+        }
+      },
+
       '/api/interest': {
         get: {
           tags: ['Interest'],
@@ -201,19 +373,68 @@ const options = {
           }
         }
       },
-      '/api/interest/seed': {
-        post: {
-          tags: ['Interest'],
-          summary: '(Yalnız Test Üçün) Databazanı ilkin maraqlarla doldurur',
-          responses: {
-            '201': { description: 'Databaza uğurla dolduruldu' }
-          }
-        }
-      },
+
       '/api/location/check-in': {
         post: {
           tags: ['Location'],
-          summary: 'İstifadəçini verilən koordinatlara ən yaxın məkana "check-in" edir',
+          summary: 'Ağıllı Check-in: İstifadəçini məkana daxil edir və ya seçim təklif edir',
+          description: "Bu endpoint istifadəçinin koordinatlarına əsasən yaxınlıqdakı məkanları axtarır. Əgər 1 məkan tapılarsa, avtomatik check-in edir. Birdən çox məkan tapılarsa, seçim üçün onların siyahısını qaytarır.",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  // DÜZƏLİŞ BURADADIR
+                  type: 'object',
+                  properties: {
+                    latitude: {
+                      type: 'number',
+                      example: 40.3777
+                    },
+                    longitude: {
+                      type: 'number',
+                      example: 49.8344
+                    }
+                  },
+                  required: ['latitude', 'longitude']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': {
+              description: 'Sorğu uğurlu oldu. Cavabın `status` sahəsinə baxın.',
+              content: {
+                'application/json': {
+                  examples: {
+                    'Single Venue Found (Checked-in)': {
+                      value: {
+                        status: 'CHECKED_IN',
+                        message: "Siz uğurla 'Second Cup'-a daxil oldunuz!",
+                        data: { /* ... ActiveSession obyekti ... */ }
+                      }
+                    },
+                    'Multiple Venues Found (Selection needed)': {
+                      value: {
+                        status: 'MULTIPLE_OPTIONS',
+                        message: "Yaxınlığınızda bir neçə məkan tapıldı. Zəhmət olmasa, birini seçin.",
+                        data: [{ id: 1, name: "Second Cup" }, { id: 2, name: "Coffee Moffie" }]
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            '404': { description: 'Yaxınlıqda heç bir məkan tapılmadı' }
+          }
+        }
+      },
+      '/api/location/check-in/finalize': {
+        post: {
+          tags: ['Location'],
+          summary: 'İstifadəçinin seçdiyi məkan ilə check-in prosesini tamamlayır',
+          description: "'Ağıllı Check-in' sorğusu 'MULTIPLE_OPTIONS' statusu qaytardıqda, istifadəçinin seçdiyi məkanın ID-si bu endpoint-ə göndərilir.",
           security: [{ bearerAuth: [] }],
           requestBody: {
             required: true,
@@ -222,20 +443,16 @@ const options = {
                 schema: {
                   type: 'object',
                   properties: {
-                    latitude: { type: 'number', example: 40.3777 },
-                    longitude: { type: 'number', example: 49.8344 }
-                  }
+                    venueId: { type: 'integer', example: 1 }
+                  },
+                  required: ['venueId']
                 }
               }
             }
           },
           responses: {
-            '200': { description: 'Uğurlu check-in' },
-            '401': { description: 'Avtorizasiya xətası' },
-            '404': {
-              description: 'Yaxınlıqda məkan tapılmadı',
-              content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorResponse' } } }
-            }
+            '200': { description: 'Check-in uğurla tamamlandı' },
+            '400': { description: 'venueId təqdim edilməyib' }
           }
         }
       },
@@ -245,6 +462,72 @@ const options = {
           summary: '(Yalnız Test Üçün) Databazanı ilkin məkanlarla doldurur',
           responses: {
             '201': { description: 'Databaza uğurla dolduruldu' }
+          }
+        }
+      },
+      '/api/location/incognito': {
+        patch: {
+          tags: ['Location'], // <--- "Premium" teqi silindi
+          summary: 'Görünməz rejimi aktiv və ya deaktiv edir', // <--- "PREMIUM:" yazısı silindi
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    status: {
+                      type: 'boolean',
+                      description: 'true = aktiv, false = deaktiv',
+                      example: true
+                    }
+                  },
+                  required: ['status']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { description: 'Status uğurla dəyişdirildi' },
+            '400': { description: 'Check-in edilməyib və ya status səhvdir' },
+            '401': { description: 'Avtorizasiya xətası' } // <--- 403 cavabı silindi
+          }
+        }
+      },
+      '/api/location/venues/{id}/stats': {
+        get: {
+          tags: ['Location'],
+          summary: 'Bir məkana aid statistik məlumatları gətirir',
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          responses: { '200': { description: 'Statistik məlumatlar' } }
+        }
+      },
+      '/api/location/venues/{id}/live-stats': {
+        get: {
+          tags: ['Location', 'Premium'],
+          summary: 'PREMIUM: Bir məkanın real-zamanlı (canlı) statistik məlumatlarını gətirir',
+          security: [{ bearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
+          responses: {
+            '200': { 
+              description: 'Canlı statistik məlumatlar',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      userCount: { type: 'integer', example: 12 },
+                      genderRatio: { type: 'object', properties: { male: {type: 'integer'}, female: {type: 'integer'} }, example: { male: 60, female: 40 } },
+                      ageRange: { type: 'string', example: '22-28' }
+                    }
+                  }
+                }
+              }
+            },
+            '403': { description: 'Premium abunəlik tələb olunur' },
+            '404': { description: 'Məkan tapılmadı' }
           }
         }
       },
@@ -295,12 +578,251 @@ const options = {
           responses: { '200': { description: 'Mesaj uğurla şikayət olundu' } }
         }
       },
+      '/api/chat/group-messages/{id}/report': {
+        post: {
+          tags: ['Chat'],
+          summary: 'Bir qrup mesajını şikayət edir',
+          security: [{ bearerAuth: [] }],
+          parameters: [{
+            name: 'id',
+            in: 'path',
+            required: true,
+            description: 'Şikayət ediləcək qrup mesajının ID-si',
+            schema: { type: 'integer' }
+          }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    reason: {
+                      type: 'string',
+                      example: 'Təhqiramiz məzmun'
+                    }
+                  },
+                  required: ['reason']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { description: 'Qrup mesajı uğurla şikayət olundu' },
+            '401': { description: 'Avtorizasiya xətası' },
+            '404': { description: 'Mesaj tapılmadı' }
+          }
+        }
+      },
+      '/api/chat/messages/{id}': {
+        delete: {
+          tags: ['Chat'],
+          summary: 'Hazırkı istifadəçinin özünə aid bir mesajı silir',
+          security: [{ bearerAuth: [] }],
+          parameters: [{
+            name: 'id',
+            in: 'path',
+            required: true,
+            description: 'Silinəcək mesajın ID-si',
+            schema: { type: 'integer' }
+          }],
+          responses: {
+            '200': { description: 'Mesaj uğurla silindi' },
+            '401': { description: 'Avtorizasiya xətası' },
+            '403': { description: 'Bu mesajı silməyə icazəniz yoxdur' },
+            '404': { description: 'Mesaj tapılmadı' }
+          }
+        }
+      },
+      '/api/chat/group/upload-image': {
+        post: {
+          tags: ['Chat'],
+          summary: 'Qrup söhbəti üçün şəkil faylı yükləyir',
+          description: "Bu endpoint, istifadəçinin qrup söhbətinə göndərmək istədiyi şəkli Cloudinary-ə yükləyir və təhlükəsiz URL-i geri qaytarır. Bu URL daha sonra WebSocket vasitəsilə mesaj olaraq göndərilir.",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'multipart/form-data': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    // router faylında təyin etdiyimiz adla eyni olmalıdır
+                    groupChatImage: {
+                      type: 'string',
+                      format: 'binary',
+                      description: 'Şəkil faylı (jpg, png, etc.)'
+                    }
+                  },
+                  required: ['groupChatImage']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { description: 'Fayl uğurla yükləndi və URL qaytarıldı' },
+            '400': { description: 'Heç bir fayl yüklənmədi' },
+            '401': { description: 'Avtorizasiya xətası' }
+          }
+        }
+      },
+      '/api/chat/group/upload-video': {
+        post: {
+          tags: ['Chat'],
+          summary: 'Qrup söhbəti üçün video not faylı yükləyir',
+          description: "Bu endpoint, istifadəçinin qrup söhbətinə göndərmək istədiyi qısa video faylını Cloudinary-ə yükləyir və təhlükəsiz URL-i geri qaytarır.",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'multipart/form-data': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    // router faylında təyin etdiyimiz adla eyni olmalıdır
+                    groupChatImage: {
+                      type: 'string',
+                      format: 'binary',
+                      description: 'Video faylı (mp4, etc.)'
+                    }
+                  },
+                  required: ['groupChatVideo']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { description: 'Fayl uğurla yükləndi və URL qaytarıldı' },
+            '400': { description: 'Heç bir fayl yüklənmədi' },
+            '401': { description: 'Avtorizasiya xətası' }
+          }
+        }
+      },
+      '/api/chat/group/upload-audio': {
+        post: {
+          tags: ['Chat'],
+          summary: 'Qrup söhbəti üçün səs faylı yükləyir',
+          description: "Bu endpoint, istifadəçinin qrup söhbətinə göndərmək istədiyi səs faylını Cloudinary-ə yükləyir və təhlükəsiz URL-i geri qaytarır.",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'multipart/form-data': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    // router faylında təyin etdiyimiz adla eyni olmalıdır
+                    groupChatAudio: {
+                      type: 'string',
+                      format: 'binary',
+                      description: 'Səs faylı (mp3, m4a, etc.)'
+                    }
+                  },
+                  required: ['groupChatAudio']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { description: 'Fayl uğurla yükləndi və URL qaytarıldı' },
+            '400': { description: 'Heç bir fayl yüklənmədi' },
+            '401': { description: 'Avtorizasiya xətası' }
+          }
+        }
+      },
+      '/api/chat/upload-audio': {
+        post: {
+          tags: ['Chat'],
+          summary: 'Söhbət üçün səsli mesaj faylı yükləyir',
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'multipart/form-data': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    chatAudio: {
+                      type: 'string',
+                      format: 'binary',
+                      description: 'Səs faylı (məsələn, .mp3, .m4a)'
+                    }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { description: 'Fayl uğurla yükləndi və URL qaytarıldı' },
+            '400': { description: 'Heç bir fayl yüklənmədi' }
+          }
+        }
+      },
+      '/api/chat/icebreakers': {
+        get: {
+          tags: ['Chat'],
+          summary: 'Söhbətə başlamaq üçün təsadüfi "Buz Sındıran" sualları gətirir',
+          description: 'Bu endpoint, adətən yeni bir bağlantı ("match") yarandıqda və söhbət pəncərəsi ilk dəfə açıldıqda istifadə olunur. Təsadüfi 3 sual qaytarır.',
+          security: [{ bearerAuth: [] }],
+          responses: {
+            '200': {
+              description: 'Təsadüfi sualların siyahısı uğurla qaytarıldı',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'array',
+                    items: {
+                      type: 'object',
+                      properties: {
+                        id: { type: 'integer', example: 1 },
+                        text: { type: 'string', example: 'Əgər bir super gücün olsaydı, nə olardı?' }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            '401': { description: 'Avtorizasiya xətası' }
+          }
+        }
+      },
+      '/api/chat/venue/{venueId}/messages': {
+        get: {
+          tags: ['Chat'],
+          summary: 'Məkana aid qrup söhbətinin son mesajlarını gətirir',
+          security: [{ bearerAuth: [] }],
+          parameters: [{
+            name: 'venueId',
+            in: 'path',
+            required: true,
+            schema: { type: 'integer' }
+          }],
+          responses: {
+            '200': { description: 'Mesajların siyahısı uğurla qaytarıldı' },
+            '401': { description: 'Avtorizasiya xətası' }
+          }
+        }
+      },
       '/api/notification': {
         get: {
           tags: ['Notification'],
-          summary: 'Hazırkı istifadəçinin bütün bildirişlərini gətirir',
+          summary: 'Hazırkı istifadəçinin bütün bildirişlərini gətirir (səhifələmə ilə)',
           security: [{ bearerAuth: [] }],
-          responses: { '200': { description: 'Bildirişlərin siyahısı' } }
+          parameters: [
+            {
+              name: 'page',
+              in: 'query',
+              description: 'Gətiriləcək səhifənin nömrəsi',
+              schema: { type: 'integer', default: 1 }
+            },
+            {
+              name: 'limit',
+              in: 'query',
+              description: 'Hər səhifədə göstəriləcək bildiriş sayı',
+              schema: { type: 'integer', default: 20 }
+            }
+          ],
+          responses: { '200': { description: 'Bildirişlərin səhifələnmiş siyahısı' } }
         }
       },
       '/api/notification/{id}/read': {
@@ -430,6 +952,109 @@ const options = {
           }
         }
       },
+      '/api/users/{id}/profile': {
+        get: {
+          tags: ['User', 'Premium'],
+          summary: 'Bir istifadəçinin profilini gətirir və bu baxışı qeydə alır.Premium istifadəçilər üçün',
+          security: [{ bearerAuth: [] }],
+          parameters: [{
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string', format: 'uuid' }
+          }],
+          responses: {
+            '200': { description: 'İstifadəçinin profili' },
+            '401': { description: 'Avtorizasiya xətası' }
+          }
+        }
+      },
+      '/api/users/me': {
+        delete: {
+          tags: ['User'],
+          summary: 'OTP ilə təsdiqləyərək hazırkı istifadəçinin hesabını silir',
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    otp: {
+                      type: 'string',
+                      example: '123456'
+                    }
+                  },
+                  required: ['otp']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { description: 'Hesab uğurla silindi' },
+            '400': { description: 'OTP kodu yanlışdır və ya vaxtı bitib' },
+            '401': { description: 'Avtorizasiya xətası' }
+          }
+        }
+      },
+       '/api/users/me/history': {
+        get: {
+          tags: ['User'],
+          summary: 'Hazırkı istifadəçinin son check-in tarixçəsini gətirir',
+          security: [{ bearerAuth: [] }],
+          responses: { '200': { description: 'Check-in tarixçəsi' } }
+        },
+        delete: {
+          tags: ['User'],
+          summary: 'Hazırkı istifadəçinin bütün check-in tarixçəsini silir',
+          security: [{ bearerAuth: [] }],
+          responses: { '200': { description: 'Tarixçə uğurla silindi' } }
+        }
+      },
+      '/api/users/me/initiate-deletion': {
+        post: {
+          tags: ['User'],
+          summary: 'Hesabın silinməsi prosesini başlayır və e-poçta OTP göndərir',
+          security: [{ bearerAuth: [] }],
+          responses: {
+            '200': { description: 'Təsdiq kodu e-poçt ünvanınıza göndərildi' },
+            '401': { description: 'Avtorizasiya xətası' }
+          }
+        }
+      },
+      '/api/rewards/grant': {
+        post: {
+          tags: ['User Actions'], // Yeni bir teq yarada bilərik
+          summary: 'İstifadəçiyə izlədiyi mükafatlı reklama görə bonus verir',
+          description: "Mobil tətbiq, istifadəçi reklamı uğurla izlədikdən sonra bu endpoint-i çağırır. Məsələn, 'EXTRA_SIGNALS_5' növü üçün 5 siqnal krediti verir.",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    rewardType: {
+                      type: 'string',
+                      example: 'EXTRA_SIGNALS_5'
+                    }
+                  },
+                  required: ['rewardType']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { description: 'Mükafat uğurla hesabınıza əlavə edildi' },
+            '400': { description: 'Bilinməyən mükafat növü' },
+            '401': { description: 'Avtorizasiya xətası' }
+          }
+        }
+      },
+
+
 
       '/api/connections': {
         get: {
@@ -597,6 +1222,88 @@ const options = {
           responses: { '200': { description: 'Status uğurla dəyişdirildi' } }
         }
       },
+      '/api/admin/users/{id}/contact': {
+        patch: {
+          tags: ['Admin - User Management'],
+          summary: "Adminin, istifadəçinin e-poçt və ya telefon nömrəsini dəyişməsi",
+          security: [{ bearerAuth: [] }],
+          parameters: [{
+            name: 'id',
+            in: 'path',
+            required: true,
+            description: 'Məlumatları dəyişdiriləcək istifadəçinin ID-si',
+            schema: { type: 'string', format: 'uuid' }
+          }],
+          requestBody: {
+            description: "Dəyişmək istədiyiniz sahələri göndərin. Hər ikisi də opsionaldır.",
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    email: {
+                      type: 'string',
+                      format: 'email',
+                      example: 'new.email@example.com'
+                    },
+                    phoneNumber: {
+                      type: 'string',
+                      example: '+994551234567'
+                    }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { description: 'Əlaqə məlumatları uğurla dəyişdirildi' },
+            '403': { description: 'İcazə yoxdur' },
+            '404': { description: 'İstifadəçi tapılmadı' },
+            '409': { description: 'Bu e-poçt və ya telefon nömrəsi artıq istifadə olunur' }
+          }
+        }
+      },
+      // Admin - Update User Subscription       ===
+      '/api/admin/users/{id}/subscription': {
+        patch: {
+          tags: ['Admin - User Management'],
+          summary: "İstifadəçinin abunəlik statusunu dəyişir (FREE/PREMIUM)",
+          security: [{ bearerAuth: [] }],
+          parameters: [{
+            name: 'id',
+            in: 'path',
+            required: true,
+            description: 'Statusu dəyişdiriləcək istifadəçinin ID-si',
+            schema: { type: 'string', format: 'uuid' }
+          }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    subscription: {
+                      type: 'string',
+                      description: 'Yeni abunəlik statusu',
+                      enum: ['FREE', 'PREMIUM'],
+                      example: 'PREMIUM'
+                    }
+                  },
+                  required: ['subscription']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { description: 'Abunəlik statusu uğurla dəyişdirildi' },
+            '400': { description: 'Yanlış abunəlik tipi göndərildi' },
+            '403': { description: 'İcazə yoxdur' },
+            '404': { description: 'İstifadəçi tapılmadı' }
+          }
+        }
+      },
       '/api/admin/users/{id}/connections': {
         get: {
           tags: ['Admin - User Management'],
@@ -686,13 +1393,46 @@ const options = {
       },
 
       '/api/admin/venues': {
-        get: { tags: ['Admin - Content'], summary: 'Bütün məkanların siyahısını gətirir', security: [{ bearerAuth: [] }], responses: { '200': { description: 'Success' } } },
-        post: { tags: ['Admin - Content'], summary: 'Yeni məkan yaradır', security: [{ bearerAuth: [] }], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { name: { type: 'string' }, latitude: { type: 'number' }, longitude: { type: 'number' } } } } } }, responses: { '201': { description: 'Created' } } }
+        get: {
+          tags: ['Admin - Content'],
+          summary: 'Bütün məkanların siyahısını gətirir',
+          security: [{ bearerAuth: [] }],
+          responses: { '200': { description: 'Success' } }
+        },
+        post: {
+          tags: ['Admin - Content'],
+          summary: 'Yeni məkan yaradır',
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json':
+              {
+                schema: {
+                  type: 'object',
+                  properties:
+                  {
+                    name: { type: 'string' },
+                    latitude: { type: 'number' },
+                    longitude: { type: 'number' },
+                    category: {
+                      type: 'string',
+                      enum: ['GENERAL', 'CAFE', 'RESTAURANT', 'UNIVERSITY', 'BAR', 'EVENT_SPACE'],
+                      example: 'CAFE'
+                    }
+                  }
+                }
+              }
+            }
+          },
+          responses: { '201': { description: 'Created' } }
+        }
       },
       '/api/admin/venues/{id}': {
         patch: { tags: ['Admin - Content'], summary: 'Məkanı yeniləyir', security: [{ bearerAuth: [] }], parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }], requestBody: { required: true, content: { 'application/json': { schema: { type: 'object', properties: { name: { type: 'string' } } } } } }, responses: { '200': { description: 'Success' } } },
         delete: { tags: ['Admin - Content'], summary: 'Məkanı silir', security: [{ bearerAuth: [] }], parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }], responses: { '204': { description: 'No Content' } } }
       },
+
       '/api/admin/venues/{id}/activity': {
         get: {
           tags: ['Admin - Content'],
@@ -778,6 +1518,97 @@ const options = {
           responses: { '200': { description: 'Success' } }
         }
       },
+      //  Admin - Icebreaker Question Management ===
+      '/api/admin/icebreakers': {
+        get: {
+          tags: ['Admin - Content'],
+          summary: 'Bütün "Buz Sındıran" sualların siyahısını gətirir',
+          security: [{ bearerAuth: [] }],
+          responses: { '200': { description: 'Sualların siyahısı uğurla qaytarıldı' } }
+        },
+        post: {
+          tags: ['Admin - Content'],
+          summary: 'Yeni bir "Buz Sındıran" sual yaradır',
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    text: {
+                      type: 'string',
+                      example: 'Əgər bir super gücün olsaydı, nə olardı?'
+                    }
+                  },
+                  required: ['text']
+                }
+              }
+            }
+          },
+          responses: {
+            '201': { description: 'Sual uğurla yaradıldı' },
+            '400': { description: 'Sual mətni boşdur' }
+          }
+        }
+      },
+      '/api/admin/icebreakers/{id}': {
+        patch: {
+          tags: ['Admin - Content'],
+          summary: 'Mövcud bir "Buz Sındıran" sualı yeniləyir',
+          security: [{ bearerAuth: [] }],
+          parameters: [{
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'integer' }
+          }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    text: {
+                      type: 'string',
+                      example: 'Bu günə qədər getdiyin ən maraqlı yer haradır?'
+                    }
+                  },
+                  required: ['text']
+                }
+              }
+            }
+          },
+          responses: { '200': { description: 'Sual uğurla yeniləndi' } }
+        },
+        delete: {
+          tags: ['Admin - Content'],
+          summary: 'Bir "Buz Sındıran" sualı silir',
+          security: [{ bearerAuth: [] }],
+          parameters: [{
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'integer' }
+          }],
+          responses: { '204': { description: 'Sual uğurla silindi' } }
+        }
+      },
+      '/api/admin/stats/calculate-venue-stats': {
+        post: {
+          tags: ['Admin - Statistics'],
+          summary: 'Məkan statistikalarının hesablanmasını manual olaraq başladır.(test meqsedlidi prod-a getmeyecek)',
+          description: "Bu endpoint, normalda gündə bir dəfə avtomatik işə düşən statistika hesablama prosesini dərhal başlatmaq üçün istifadə olunur.",
+          security: [{ bearerAuth: [] }],
+          responses: {
+            '2022': { description: 'Hesablama prosesi uğurla başladıldı' },
+            '403': { description: 'İcazə yoxdur' }
+          }
+        }
+      },
+      //  Admin -Logs ===
       '/api/admin/logs': {
         get: {
           tags: ['Admin - Audit'],
@@ -837,7 +1668,6 @@ const options = {
           properties: {
             bio: { type: 'string', example: 'Yeni bio mətni' },
             interestIds: { type: 'array', items: { type: 'integer' }, example: [1, 5] },
-            avatarUrl: { type: 'string', example: 'http://example.com/avatar.png' }
           }
         },
         ErrorResponse: {
@@ -910,24 +1740,24 @@ const options = {
             totalConnections: { type: 'integer', example: 45 },
             pendingReports: { type: 'integer', example: 3 },
           }
-        },ForgotPasswordInput: {
-            type: 'object',
-            properties: { email: { type: 'string', example: 'user@example.com' } }
+        }, ForgotPasswordInput: {
+          type: 'object',
+          properties: { email: { type: 'string', example: 'user@example.com' } }
         },
         VerifyOtpInput: {
-            type: 'object',
-            properties: {
-                email: { type: 'string', example: 'user@example.com' },
-                token: { type: 'string', example: '123456' }
-            }
+          type: 'object',
+          properties: {
+            email: { type: 'string', example: 'user@example.com' },
+            token: { type: 'string', example: '123456' }
+          }
         },
         ResetPasswordInput: {
-            type: 'object',
-            properties: {
-                email: { type: 'string', example: 'user@example.com' },
-                token: { type: 'string', example: '123456' },
-                password: { type: 'string', example: 'yeniSifre123' }
-            }
+          type: 'object',
+          properties: {
+            email: { type: 'string', example: 'user@example.com' },
+            token: { type: 'string', example: '123456' },
+            password: { type: 'string', example: 'yeniSifre123' }
+          }
         }
       }
     }

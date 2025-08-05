@@ -23,7 +23,26 @@ enum PersonalityType {
   EXTROVERT
   AMBIVERT
 }
-
+enum SubscriptionType {
+  FREE
+  PREMIUM
+}
+enum VenueCategory {
+  GENERAL
+  CAFE
+  RESTAURANT
+  UNIVERSITY
+  BAR
+  EVENT_SPACE
+  CLUB 
+}
+enum IcebreakerCategory {
+  GENERAL     // Hər növ məkana uyğun ümumi suallar
+  FOOD_DRINK  // Kafe və restoranlar üçün
+  STUDENT_LIFE // Universitetlər üçün
+  NIGHTLIFE   // Barlar və gecə klubları üçün
+  DEEP_TALK   // Dərin söhbətlər üçün
+}
 model User {
   id              String          @id @default(uuid())
   email           String          @unique
@@ -42,18 +61,27 @@ model User {
   messages        Message[]       @relation("SentMessages")
   blockedBy       Block[]         @relation("BlockedUsers")
   blocking        Block[]         @relation("BlockingUsers")
-  reportsMade     Report[]        @relation("ReportingUsers")
-  reportedBy      Report[]        @relation("ReportedUsers")
+  reportsMade          Report[]               @relation("reports_made")
+  reportsReceived      Report[]               @relation("reports_received")
   devices         Device[]
   notifications   Notification[]
   feedbacks Feedback[]
   role   Role @relation(fields: [roleId], references: [id])
   roleId Int  @default(2) 
   isActive Boolean @default(true)
+  subscription SubscriptionType   @default(FREE) // YENİ SAHƏ
+  premiumExpiresAt DateTime?  
   adminLogs   AdminLog[]
   sentBroadcasts BroadcastNotification[]
-  checkInHistory CheckInHistory[] // YENİ ƏLAVƏ
   passwordResetTokens PasswordResetToken[] // YENİ ƏLAVƏ
+  viewsMade     ProfileView[] @relation("views_made")
+  viewsReceived ProfileView[] @relation("views_received")
+  venueGroupMessages VenueGroupMessage[]
+  accountDeletionToken AccountDeletionToken?
+  emailChangeToken EmailChangeToken?
+  refreshTokens RefreshToken[]
+  groupMessageReactions GroupMessageReaction[] // Bu sətri əlavə edin
+  checkInHistory CheckInHistory[]
 
 }
 
@@ -70,6 +98,14 @@ model Profile {
   userId      String           @unique
   interests   Interest[]       @relation("ProfileInterests")
   photos      Photo[]
+  phoneNumber   String?          @unique
+  extraSignalCredits Int     @default(0) // YENİ SAHƏ: Mükafatlı siqnal kreditləri
+  hideViewFootprints   Boolean   @default(false) // YENİ SAHƏ
+  preferredMinAge      Int?
+  preferredMaxAge      Int?
+  notifyOnNewSignal    Boolean @default(true)
+  notifyOnNewMatch     Boolean @default(true)
+  notifyOnNewMessage   Boolean @default(true)
 }
 
 model Category {
@@ -90,14 +126,16 @@ model Venue {
   id             Int             @id @default(autoincrement())
   name           String
   address        String?
-    description String?  // Məkan haqqında ətraflı məlumat (opsional)
+  description String?  // Məkan haqqında ətraflı məlumat (opsional)
   latitude       Float
   longitude      Float
   isActive   Boolean  @default(true)    // Məkanın aktiv/deaktiv olması
   isFeatured Boolean  @default(false)   // Məkanın "Featured" olması
-
   activeSessions ActiveSession[]
-    checkInHistory CheckInHistory[] // YENİ ƏLAVƏ
+  groupMessages VenueGroupMessage[]
+  category     VenueCategory @default(GENERAL) // YENİ SAHƏ
+  statsSummary Json? 
+  checkInHistory CheckInHistory[]
 
 }
 
@@ -105,6 +143,7 @@ model ActiveSession {
   id        String   @id @default(uuid())
   createdAt DateTime @default(now())
   expiresAt DateTime
+  isIncognito Boolean  @default(false) // YENİ SAHƏ
   user      User     @relation(fields: [userId], references: [id])
   userId    String   @unique
   venue     Venue    @relation(fields: [venueId], references: [id])
@@ -136,14 +175,16 @@ model Connection {
 
 model Message {
   id           Int        @id @default(autoincrement())
-  content      String
+  content      String?
+  imageUrl  String?  
+  audioUrl  String?
   createdAt    DateTime   @default(now())
   sender       User       @relation("SentMessages", fields: [senderId], references: [id])
   senderId     String
   connection   Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
   connectionId Int
-    reports Report[]
- isRead    Boolean  @default(false)
+  reports Report[]
+  isRead    Boolean  @default(false)
 }
 
 model Block {
@@ -158,20 +199,23 @@ model Block {
 }
 
 model Report {
-  id          Int      @id @default(autoincrement())
-  reason      String
-  createdAt   DateTime @default(now())
-  status      ReportStatus @default(PENDING)
+  id        Int      @id @default(autoincrement())
+  reason    String
+  status    ReportStatus @default(PENDING)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
-  reporter    User     @relation("ReportingUsers", fields: [reporterId], references: [id])
-  reporterId  String
+  reporterId String
+  reporter   User     @relation("reports_made", fields: [reporterId], references: [id], onDelete: Cascade)
 
-  // DƏYİŞİKLİK: Artıq şikayət ya bir istifadəçi, ya da bir mesaj haqqında ola bilər
-  reportedUser    User?     @relation("ReportedUsers", fields: [reportedUserId], references: [id])
-  reportedUserId  String?
+  reportedUserId String
+  reportedUser   User     @relation("reports_received", fields: [reportedUserId], references: [id], onDelete: Cascade)
 
-  reportedMessage Message? @relation(fields: [reportedMessageId], references: [id], onDelete: Cascade)
-  reportedMessageId Int?
+  reportedMessageId    Int?
+  reportedMessage      Message? @relation(fields: [reportedMessageId], references: [id], onDelete: SetNull)
+
+  reportedGroupMessageId Int?
+  reportedGroupMessage   VenueGroupMessage? @relation(fields: [reportedGroupMessageId], references: [id], onDelete: SetNull)
 }
 
 model Device {
@@ -230,20 +274,6 @@ model BroadcastNotification {
   sentById  String   // Bildirişi göndərən admin
 }
 
-model CheckInHistory {
-  id        Int      @id @default(autoincrement())
-  createdAt DateTime @default(now())
-
-  user      User     @relation(fields: [userId], references: [id])
-  userId    String
-
-  venue     Venue    @relation(fields: [venueId], references: [id])
-  venueId   Int
-
-  @@index([userId])
-  @@index([venueId])
-}
-
 model PasswordResetToken {
   id        Int      @id @default(autoincrement())
   token     String   @unique // 6 rəqəmli OTP kodu
@@ -262,4 +292,96 @@ model Photo {
   
   profile   Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
   profileId String
+}
+model IcebreakerQuestion {
+  id        Int      @id @default(autoincrement())
+  text      String   @unique
+  category  IcebreakerCategory @default(GENERAL) // YENİ SAHƏ
+  createdAt DateTime @default(now())
+}
+
+model ProfileView {
+  id        Int      @id @default(autoincrement())
+  viewerId  String
+  viewedId  String
+  createdAt DateTime @default(now())
+
+  viewer User @relation("views_made", fields: [viewerId], references: [id], onDelete: Cascade)
+  viewed User @relation("views_received", fields: [viewedId], references: [id], onDelete: Cascade)
+
+  @@unique([viewerId, viewedId]) // Bir istifadəçinin digərinə baxışını təkrarlamamaq üçün
+}
+
+model VenueGroupMessage {
+  id        Int      @id @default(autoincrement())
+  content   String?
+  imageUrl  String?  // YENİ SAHƏ
+  audioUrl  String?  // YENİ SAHƏ
+  videoUrl  String?  // YENİ SAHƏ
+  createdAt DateTime @default(now())
+  reports Report[]
+  reactions GroupMessageReaction[] // Bu sətri əlavə edin
+
+  venueId   Int
+  senderId  String
+
+  venue     Venue @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  sender    User  @relation(fields: [senderId], references: [id], onDelete: Cascade)
+}
+
+model AccountDeletionToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model EmailChangeToken {
+  id        Int      @id @default(autoincrement()) // DÜZƏLİŞ BURADADIR
+  token     String   @unique
+  newEmail  String
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  userId    String   @unique
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+
+model RefreshToken {
+  id        Int      @id @default(autoincrement())
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model GroupMessageReaction {
+  id        Int      @id @default(autoincrement())
+  emoji     String
+  createdAt DateTime @default(now())
+
+  messageId Int
+  message   VenueGroupMessage @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji]) // Bir istifadəçinin eyni mesaja eyni emojini bir dəfə əlavə edə bilməsini təmin edir
+}
+
+model CheckInHistory {
+  id        Int      @id @default(autoincrement())
+  createdAt DateTime @default(now())
+
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  venueId   Int
+  venue     Venue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
 }

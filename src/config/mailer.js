@@ -33,7 +33,25 @@ const sendPasswordResetEmail = async (to, token) => {
     }
 };
 
+const sendAccountDeletionEmail = async (to, token) => {
+    const mailOptions = {
+        from: `"Lyra Support" <${process.env.EMAIL_USER}>`,
+        to: to,
+        subject: 'Lyra Hesab Silmə Təsdiq Kodu',
+        html: `
+            <div>Hesabınızı silmək üçün təsdiq kodunuz: <b>${token}</b>. Bu kodu heç kimlə paylaşmayın.</div>
+        `,
+    };
+    await transporter.sendMail(mailOptions);
+};
 
-
-
-module.exports = { sendPasswordResetEmail };
+const sendEmailChangeConfirmationEmail = async (to, token) => {
+    const mailOptions = {
+        from: `"Lyra Support" <${process.env.EMAIL_USER}>`,
+        to: to, // Yeni e-poçta göndəririk
+        subject: 'Lyra E-poçt Dəyişikliyi Təsdiq Kodu',
+        html: `<div>E-poçt ünvanınızı təsdiqləmək üçün kodunuz: <b>${token}</b>.</div>`,
+    };
+    await transporter.sendMail(mailOptions);
+};
+module.exports = { sendPasswordResetEmail, sendAccountDeletionEmail,sendEmailChangeConfirmationEmail };

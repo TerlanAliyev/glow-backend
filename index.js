@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const http = require('http'); 
 const { Server } = require("socket.io"); 
+const cron = require('node-cron');
 
 const swaggerUi = require('swagger-ui-express');
 const swaggerJsdoc = require('swagger-jsdoc');
@@ -22,6 +23,9 @@ const { generalLimiter } = require('./src/middleware/rateLimiter'); // Ümumi li
 const healthRouter = require('./src/health/health.router'); // Health router importu
 const feedbackRouter = require('./src/feedback/feedback.router'); // YENİ İMPORT
 const adminRouter = require('./src/admin/admin.router'); // YENİ İMPORT
+const purchaseRouter = require('./src/purchase/purchase.router');
+const rewardsRouter = require('./src/rewards/rewards.router');
+const { sendReEngagementNotifications,calculateVenueStatistics } = require('./src/scheduler/scheduler.service');
 
 const app = express();
 const server = http.createServer(app); 
@@ -56,10 +60,22 @@ app.use('/api', generalLimiter);
 app.use('/api/health', healthRouter); // Health check routeri
 app.use('/api/feedback', feedbackRouter); // YENİ ROUTER-İ QOŞURUQ
 app.use('/api/admin', adminRouter); // Admin routerini qoşuruq
+app.use('/api/purchase', purchaseRouter);
+app.use('/api/rewards', rewardsRouter);
 
 
 app.get('/', (req, res) => {
   res.send('Glow Backend is running! API docs available at /api-docs');
+});
+cron.schedule('0 12 * * *', () => {
+    sendReEngagementNotifications();
+}, {
+    timezone: "Asia/Baku" // Bakı vaxtı ilə işləməsi üçün
+});
+cron.schedule('0 5 * * *', () => {
+    calculateVenueStatistics();
+}, {
+    timezone: "Asia/Baku"
 });
 
 initializeSocket(io);

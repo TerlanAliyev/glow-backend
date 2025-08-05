@@ -1,5 +1,6 @@
 
 const prisma = require('../config/prisma');
+const { sendAccountDeletionEmail } = require('../config/mailer'); // Bunu faylın yuxarısına əlavə edin
 
 const blockUser = async (blockerId, blockedId) => {
     if (blockerId === blockedId) {
@@ -39,7 +40,6 @@ const unblockUser = async (blockerId, blockedId) => {
 };
 
 const getBlockedUsers = async (userId) => {
-    // Mənim blokladığım bütün qeydləri tapırıq
     const blocks = await prisma.block.findMany({
         where: {
             blockerId: userId,
@@ -131,9 +131,149 @@ const reportUser = async (reporterId, reportedId, reason) => {
     });
 };
 
+//Premium function to get profile and log view
+
+const getProfileAndLogView = async (targetUserId, viewerId) => {
+    
+    // ADDIM 1: İstifadəçinin başqasının profilinə baxıb-baxmadığını yoxlayaq
+    if (targetUserId !== viewerId) {
+        // Əgər başqasının profilinə baxırsa, baxan şəxsin (viewer) məxfiliyini yoxlayaq
+        const viewer = await prisma.user.findUnique({
+            where: { id: viewerId },
+            include: { profile: true }
+        });
+
+        if (viewer) {
+            const isPremium = viewer.subscription === 'PREMIUM' || (viewer.premiumExpiresAt && viewer.premiumExpiresAt > new Date());
+            const hidesFootprints = viewer.profile?.hideViewFootprints || false;
+
+            // Yalnız əgər istifadəçi premium DEYİLSƏ və ya premium olub ayaq izini GİZLƏTMİRSƏ, baxışı qeydə al.
+            if (!isPremium || !hidesFootprints) {
+                await prisma.profileView.upsert({
+                    where: { viewerId_viewedId: { viewerId, viewedId: targetUserId } },
+                    update: { createdAt: new Date() },
+                    create: { viewerId, viewedId: targetUserId },
+                });
+            }
+        }
+    }
+
+    // ADDIM 2: Hər iki halda (istər özünə, istərsə də başqasına baxsın), baxılan şəxsin profilini qaytaraq
+    const targetUser = await prisma.user.findUnique({
+        where: { id: targetUserId },
+        select: {
+            id: true,
+            subscription: true, // Baxılan şəxsin premium olub-olmadığını bilmək üçün
+            profile: {
+                include: {
+                    photos: true,
+                    interests: true
+                }
+            }
+        }
+    });
+
+    if (!targetUser) {
+        const error = new Error('İstifadəçi tapılmadı.');
+        error.statusCode = 404;
+        throw error;
+    }
+
+    return targetUser;
+};
+const deleteOwnAccount = async (userId, otp) => {
+    const deletionRequest = await prisma.accountDeletionToken.findFirst({
+        where: {
+            userId: userId,
+            token: otp,
+        }
+    });
+    if (!deletionRequest || deletionRequest.expiresAt < new Date()) {
+        const error = new Error('Təsdiq kodu yanlışdır və ya vaxtı bitib.');
+        error.statusCode = 400;
+        throw error;
+    }
+    // Prisma Transaction: Bu əməliyyatların hamısı ya birlikdə uğurlu olur, ya da heç biri icra edilmir.
+    return prisma.$transaction(async (tx) => {
+        // İstifadəçiyə aid olan bütün asılılıqları silirik
+        await tx.signal.deleteMany({ where: { OR: [{ senderId: userId }, { receiverId: userId }] } });
+        await tx.connection.deleteMany({ where: { OR: [{ userAId: userId }, { userBId: userId }] } });
+        await tx.report.deleteMany({ where: { OR: [{ reporterId: userId }, { reportedUserId: userId }] } });
+        await tx.block.deleteMany({ where: { OR: [{ blockerId: userId }, { blockedId: userId }] } });
+        await tx.activeSession.deleteMany({ where: { userId: userId } });
+        await tx.device.deleteMany({ where: { userId: userId } });
+        await tx.notification.deleteMany({ where: { userId: userId } });
+        await tx.feedback.deleteMany({ where: { authorId: userId } });
+        await tx.checkInHistory.deleteMany({ where: { userId: userId } });
+        await tx.message.deleteMany({ where: { senderId: userId } });
+        await tx.profileView.deleteMany({ where: { OR: [{ viewerId: userId }, { viewedId: userId }] } });
+        await tx.venueGroupMessage.deleteMany({ where: { senderId: userId } });
+
+        // İstifadəçiyə bağlı şəkilləri silirik (əvvəlcə profili tapmalıyıq)
+        const userProfile = await tx.profile.findUnique({ where: { userId: userId } });
+        if (userProfile) {
+            await tx.photo.deleteMany({ where: { profileId: userProfile.id } });
+        }
+
+        // Asılılıqlar silindikdən sonra profili silirik
+        await tx.profile.deleteMany({ where: { userId: userId } });
+
+        // Nəhayət, istifadəçinin özünü silirik
+        const deletedUser = await tx.user.delete({ where: { id: userId } });
+
+        return deletedUser;
+    });
+};
+const initiateAccountDeletion = async (userId) => {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new Error('İstifadəçi tapılmadı.');
+
+    // Köhnə tokenləri silirik
+    await prisma.accountDeletionToken.deleteMany({ where: { userId: userId } });
+
+    // Yeni 6 rəqəmli OTP yaradırıq
+    const token = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(new Date().getTime() + 10 * 60 * 1000); // 10 dəqiqə sonra
+
+    await prisma.accountDeletionToken.create({
+        data: {
+            token,
+            expiresAt,
+            userId: userId,
+        }
+    });
+
+    // E-poçt göndəririk
+    await sendAccountDeletionEmail(user.email, token);
+};
+const getCheckInHistory = async (userId, { page = 1, limit = 20 }) => {
+    const skip = (page - 1) * limit;
+    const where = { userId };
+    const [history, total] = await prisma.$transaction([
+        prisma.checkInHistory.findMany({
+            where,
+            orderBy: { createdAt: 'desc' },
+            skip,
+            take: limit,
+            include: { venue: { select: { name: true, address: true } } }
+        }),
+        prisma.checkInHistory.count({ where })
+    ]);
+    return { data: history, totalPages: Math.ceil(total / limit), currentPage: page };
+};
+
+const deleteCheckInHistory = async (userId) => {
+    return prisma.checkInHistory.deleteMany({
+        where: { userId },
+    });
+};
 module.exports = {
     blockUser,
     unblockUser,
     getBlockedUsers,
-    reportUser
+    reportUser,
+    getProfileAndLogView,
+    deleteOwnAccount,
+    initiateAccountDeletion,deleteCheckInHistory,
+    getCheckInHistory,
 };

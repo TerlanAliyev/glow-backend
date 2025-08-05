@@ -3,7 +3,10 @@
   "version": "1.0.0",
   "description": "",
   "main": "index.js",
-  "scripts": {
+   "scripts": {
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "prisma:seed": "node prisma/seed.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -23,6 +26,7 @@
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
     "multer-storage-cloudinary": "^4.0.0",
+    "node-cron": "^4.2.1",
     "nodemailer": "^7.0.5",
     "pg": "^8.16.3",
     "prisma": "^6.12.0",

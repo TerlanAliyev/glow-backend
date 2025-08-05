@@ -14,10 +14,11 @@ cloudinary.config({
 const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: 'lyra_avatars', // Cloudinary-də yaradılacaq qovluğun adı
-    allowed_formats: ['jpg', 'png', 'jpeg'],
-    // Yüklənən şəkilləri avtomatik olaraq 500x500 ölçüsünə gətiririk
-    transformation: [{ width: 500, height: 500, crop: 'limit' }],
+    folder: 'lyra_files', // Qovluğun adını daha ümumi edək
+    // DƏYİŞİKLİK: İcazə verilən formatları genişləndiririk
+    allowed_formats: ['jpg', 'png', 'jpeg', 'mp3', 'm4a', 'webm', 'ogg'],
+    // Yüklənən faylın növünə görə fərqli qovluqlara yerləşdirmək (peşəkar yanaşma)
+    resource_type: 'auto', 
   },
 });
 

@@ -1,6 +1,8 @@
 
 const express = require('express');
-const { blockUser, unblockUser, getBlockedUsers,reportUser } = require('./user.controller');
+const { blockUser, unblockUser, getBlockedUsers,reportUser, getUserProfile,deleteMe
+    ,initiateDeleteMe,getMyHistory,deleteMyHistory
+ } = require('./user.controller');
 const { authenticateToken } = require('../middleware/auth.middleware');
 const { body } = require('express-validator');
 
@@ -21,4 +23,12 @@ router.post(
     [ body('reason').notEmpty().withMessage('Şikayət üçün səbəb göstərilməlidir.') ],
     reportUser
 );
+router.delete('/me', authenticateToken, deleteMe);
+router.post('/me/initiate-deletion', authenticateToken, initiateDeleteMe);
+router.get('/me/history', authenticateToken, getMyHistory);
+router.delete('/me/history', authenticateToken, deleteMyHistory);
+
+
+// Premium function to get user profile and log view
+router.get('/:id/profile', authenticateToken, getUserProfile);
 module.exports = router;

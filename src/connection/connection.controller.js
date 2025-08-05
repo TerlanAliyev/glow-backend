@@ -25,7 +25,8 @@ const unmatchUser = asyncHandler(async (req, res, next) => {
 
 const getMyConnections = asyncHandler(async (req, res) => {
     const userId = req.user.userId;
-    const connections = await connectionService.getConnectionsForUser(userId);
+    const { page = 1, limit = 20 } = req.query;
+    const connections = await connectionService.getConnectionsForUser(userId, { page: parseInt(page), limit: parseInt(limit) });
     res.status(200).json(connections);
 });
 

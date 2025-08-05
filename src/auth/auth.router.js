@@ -2,7 +2,8 @@
 const express = require('express');
 const { registerUser, loginUser, getMyProfile,googleLogin,logoutUser,forgotPassword,
     verifyOtp,
-    resetPassword } = require('./auth.controller');
+    resetPassword,confirmEmailChange,initiateEmailChange
+   } = require('./auth.controller');
 const { authenticateToken } = require('../middleware/auth.middleware');
 const { body } = require('express-validator');
 const { authLimiter } = require('../middleware/rateLimiter'); // Rate limiter importu
@@ -44,6 +45,7 @@ router.post('/reset-password', [
     body('token').isLength({ min: 6, max: 6 }),
     body('password').isLength({ min: 6 })
 ], resetPassword);
-
+router.post('/me/initiate-email-change', authenticateToken, [ body('newEmail').isEmail() ], initiateEmailChange);
+router.post('/me/confirm-email-change', authenticateToken, [ body('otp').isLength({ min: 6, max: 6 }) ], confirmEmailChange);
 module.exports = router;
 

@@ -36,22 +36,46 @@ const updateUserRole = asyncHandler(async (req, res) => {
     const updatedUser = await adminService.updateUserRole(id, roleId);
     res.status(200).json(updatedUser);
 });
-
+const updateUserContact = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    try {
+        await adminService.updateUserContact(id, req.body);
+        res.status(200).json({ message: 'İstifadəçinin əlaqə məlumatları uğurla yeniləndi.' });
+    } catch (error) {
+        // Əgər yeni email və ya nömrə artıq başqası tərəfindən istifadə edilirsə...
+        if (error.code === 'P2002') {
+            return res.status(409).json({ message: 'Bu e-poçt və ya telefon nömrəsi artıq istifadə olunur.' });
+        }
+        throw error; // Digər xətaları ümumi idarəediciyə ötür
+    }
+});
 const updateUserStatus = asyncHandler(async (req, res) => {
     const { id } = req.params;
     const { isActive } = req.body;
     const updatedUser = await adminService.updateUserStatus(id, isActive);
     res.status(200).json(updatedUser);
 });
+// src/admin/admin.controller.js
+
 const getUserConnections = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const connections = await adminService.getUserConnections(id);
+    const { page = 1, limit = 10 } = req.query; // Query-dən parametrləri alırıq
+
+    const connections = await adminService.getUserConnections(id, {
+        page: parseInt(page),
+        limit: parseInt(limit)
+    });
     res.status(200).json(connections);
 });
 
 const getUserReports = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const reports = await adminService.getUserReports(id);
+    const { page = 1, limit = 10 } = req.query; // Query-dən parametrləri alırıq
+
+    const reports = await adminService.getUserReports(id, {
+        page: parseInt(page),
+        limit: parseInt(limit)
+    });
     res.status(200).json(reports);
 });
 
@@ -61,7 +85,7 @@ const getUserActivity = asyncHandler(async (req, res) => {
     res.status(200).json(activity);
 });
 const getBannedUsers = asyncHandler(async (req, res) => {
-    const users = await adminService.getBannedUsers();
+    const users = await adminService.getBannedUsers(req.query);
     res.status(200).json(users);
 });
 
@@ -88,7 +112,7 @@ const updateReportStatus = asyncHandler(async (req, res) => {
 
 // Venues
 const getVenues = asyncHandler(async (req, res) => {
-    const venues = await adminService.getVenues();
+    const venues = await adminService.getVenues(req.query);
     res.status(200).json(venues);
 });
 
@@ -101,9 +125,14 @@ const createVenue = asyncHandler(async (req, res) => {
 
 const updateVenue = asyncHandler(async (req, res) => {
     const { id } = req.params;
+    
+    // Yenilənəcək datanı birbaşa req.body-dən servisə ötürürük.
+    // Xüsusi yoxlamalar və ya data çevrilmələri servis qatında edilməlidir.
     const updatedVenue = await adminService.updateVenue(parseInt(id), req.body);
+    
     res.status(200).json(updatedVenue);
 });
+
 
 const deleteVenue = asyncHandler(async (req, res) => {
     const { id } = req.params;
@@ -205,6 +234,41 @@ const getBroadcastHistory = asyncHandler(async (req, res) => {
 
 
 
+// Icebreaker Questions
+const getIcebreakers = asyncHandler(async (req, res) => {
+    const questions = await adminService.getIcebreakers();
+    res.status(200).json(questions);
+});
+
+const createIcebreaker = asyncHandler(async (req, res) => {
+    // req.body-dən həm 'text', həm də 'category'-ni alırıq
+    const newQuestion = await adminService.createIcebreaker(req.body);
+    res.status(201).json(newQuestion);
+});
+const updateIcebreaker = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const updatedQuestion = await adminService.updateIcebreaker(id, req.body);
+    res.status(200).json(updatedQuestion);
+});
+
+const deleteIcebreaker = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    await adminService.deleteIcebreaker(id);
+    res.status(204).send();
+});
+
+const updateUserSubscription = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const { subscription } = req.body;
+    const updatedUser = await adminService.updateUserSubscription(id, subscription);
+    res.status(200).json(updatedUser);
+});
+
+const triggerVenueStatCalculation = asyncHandler(async (req, res) => {
+    const result = await adminService.triggerVenueStatCalculation();
+    res.status(202).json(result); // 202 Accepted - prosesin başladığını bildirir
+});
+
 module.exports = {
      getUsers, updateUserRole, updateUserStatus, getReports, updateReportStatus,
     getVenues, createVenue, updateVenue, deleteVenue,
@@ -217,4 +281,6 @@ module.exports = {
     getPopularVenues,getRoles, updateCategory,
     deleteCategory,getBannedUsers,
     deleteUser,
+    getIcebreakers, createIcebreaker, updateIcebreaker, deleteIcebreaker,
+    updateUserSubscription,updateUserContact,triggerVenueStatCalculation
 };

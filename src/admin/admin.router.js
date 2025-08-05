@@ -26,7 +26,12 @@ const {
     getUsageOverTime,
     getPopularVenues,getRoles,updateCategory,
     deleteCategory,getBannedUsers,
-    deleteUser
+    deleteUser,
+    getIcebreakers,
+    createIcebreaker,
+    updateIcebreaker,
+    deleteIcebreaker,
+    updateUserSubscription,updateUserContact,triggerVenueStatCalculation
 
 } = require('./admin.controller');
 const { authenticateToken } = require('../middleware/auth.middleware');
@@ -48,6 +53,7 @@ router.patch('/users/:id/status', adminOnly, updateUserStatus);
 router.get('/roles', adminOnly, getRoles);
 router.get('/users/banned', adminOnly, getBannedUsers);
 router.delete('/users/:id', adminOnly, deleteUser);
+router.patch('/users/:id/contact', adminOnly, updateUserContact);
 //User Analytics & Search
 router.get('/users/:id/connections', adminOnly, getUserConnections);
 router.get('/users/:id/reports', adminOnly, getUserReports);
@@ -62,6 +68,7 @@ router.post('/venues', adminOnly, [
     body('name').notEmpty(),
     body('latitude').isFloat(),
     body('longitude').isFloat(),
+    body('category').optional().isIn(['GENERAL', 'CAFE', 'RESTAURANT', 'UNIVERSITY', 'BAR', 'EVENT_SPACE'])
 ], createVenue);
 router.patch('/venues/:id', adminOnly, updateVenue);
 router.delete('/venues/:id', adminOnly, deleteVenue);
@@ -92,13 +99,19 @@ router.post('/notifications/broadcast', adminOnly, [
 router.get('/notifications/history', adminOnly, getBroadcastHistory);
 
 
+//Icebreaker Management ===
+router.get('/icebreakers', adminOnly, getIcebreakers);
+router.post('/icebreakers', adminOnly, [
+    body('text').notEmpty(),
+    body('category').optional().isIn(['GENERAL', 'FOOD_DRINK', 'STUDENT_LIFE', 'NIGHTLIFE', 'DEEP_TALK'])
+], createIcebreaker);router.patch('/icebreakers/:id', adminOnly, updateIcebreaker);
+router.delete('/icebreakers/:id', adminOnly, deleteIcebreaker);
 
 
+//Preium-Free
+router.patch('/users/:id/subscription', adminOnly, updateUserSubscription);
 
-
-
-
-
+router.post('/stats/calculate-venue-stats', adminOnly, triggerVenueStatCalculation);
 
 
 

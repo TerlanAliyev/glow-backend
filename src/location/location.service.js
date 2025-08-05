@@ -1,56 +1,47 @@
 
 const prisma = require('../config/prisma');
 
+// src/location/location.service.js faylındakı checkInUser funksiyasını bununla əvəz edin
+
 const checkInUser = async (userId, latitude, longitude) => {
-  // 1. Verilən koordinatlara ən yaxın məkanı tapırıq
-  const venues = await prisma.$queryRaw`
-    SELECT id, name
-    FROM "Venue"
-    WHERE ST_DWithin(
-      ST_MakePoint(longitude, latitude)::geography,
-      ST_MakePoint(${longitude}, ${latitude})::geography,
-      100 
-    )
-    ORDER BY ST_Distance(
-      ST_MakePoint(longitude, latitude),
-      ST_MakePoint(${longitude}, ${latitude})
-    )
-    LIMIT 1;
-  `;
+    const nearbyVenues = await prisma.$queryRaw`
+        SELECT id, name, address
+        FROM "Venue"
+        WHERE ST_DWithin(
+            ST_MakePoint(longitude, latitude)::geography,
+            ST_MakePoint(${longitude}, ${latitude})::geography,
+            100
+        )
+        ORDER BY ST_Distance(
+            ST_MakePoint(longitude, latitude),
+            ST_MakePoint(${longitude}, ${latitude})
+        )
+        LIMIT 5;
+    `;
 
-  if (venues.length === 0) {
-    throw new Error('Yaxınlıqda heç bir məkan tapılmadı.');
-  }
+    if (nearbyVenues.length === 0) {
+        const error = new Error('Yaxınlıqda heç bir məkan tapılmadı.');
+        error.statusCode = 404;
+        throw error;
+    }
 
-  const nearestVenue = venues[0];
+    if (nearbyVenues.length === 1) {
+        const venue = nearbyVenues[0];
+        const [activeSession, _] = await prisma.$transaction([
+            prisma.activeSession.upsert({
+                where: { userId: userId },
+                update: { venueId: venue.id, expiresAt: new Date(new Date().getTime() + 2 * 60 * 60 * 1000) },
+                create: { userId: userId, venueId: venue.id, expiresAt: new Date(new Date().getTime() + 2 * 60 * 60 * 1000) },
+                include: { venue: true }
+            }),
+            prisma.checkInHistory.create({
+                data: { userId: userId, venueId: venue.id }
+            })
+        ]);
+        return { status: 'CHECKED_IN', session: activeSession };
+    }
 
-  // 2. Həm aktiv sessiyanı yaradırıq/yeniləyirik, həm də tarixçəyə yeni bir qeyd əlavə edirik.
-  // Bütün bu əməliyyatları tək bir "transaction"-da edirik ki, data bütövlüyü qorunsun.
-  const [activeSession, _] = await prisma.$transaction([
-    // a) Aktiv sessiyanı yarat/yenilə
-    prisma.activeSession.upsert({
-        where: { userId: userId },
-        update: { 
-            venueId: nearestVenue.id, 
-            expiresAt: new Date(new Date().getTime() + 2 * 60 * 60 * 1000) // 2 saat sonra
-        },
-        create: { 
-            userId: userId, 
-            venueId: nearestVenue.id, 
-            expiresAt: new Date(new Date().getTime() + 2 * 60 * 60 * 1000) // 2 saat sonra
-        },
-        include: { venue: true }
-    }),
-    // b) Tarixçəyə yeni bir qeyd əlavə et
-    prisma.checkInHistory.create({
-        data: {
-            userId: userId,
-            venueId: nearestVenue.id,
-        }
-    })
-  ]);
-
-  return activeSession;
+    return { status: 'MULTIPLE_OPTIONS', venues: nearbyVenues };
 };
 
 // Test məqsədli funksiya
@@ -64,8 +55,111 @@ const seedDatabaseWithVenues = async () => {
         ]
     });
 };
+const setIncognitoStatus = async (userId, status) => {
+    // İstifadəçinin aktiv sessiyası olmalıdır
+    const activeSession = await prisma.activeSession.findUnique({
+        where: { userId },
+    });
 
+    if (!activeSession) {
+        const error = new Error('Görünməz rejimi aktiv etmək üçün əvvəlcə bir məkana check-in etməlisiniz.');
+        error.statusCode = 400; // Bad Request
+        throw error;
+    }
+
+    return prisma.activeSession.update({
+        where: { userId },
+        data: { isIncognito: status },
+    });
+};
+const finalizeCheckIn = async (userId, venueId) => {
+    // Bu funksiya sadəcə verilən məkan ID-si ilə ActiveSession yaradır/yeniləyir
+    const [activeSession, _] = await prisma.$transaction([
+        prisma.activeSession.upsert({
+            where: { userId: userId },
+            update: {
+                venueId: venueId,
+                expiresAt: new Date(new Date().getTime() + 2 * 60 * 60 * 1000)
+            },
+            create: {
+                userId: userId,
+                venueId: venueId,
+                expiresAt: new Date(new Date().getTime() + 2 * 60 * 60 * 1000)
+            },
+            include: { venue: true }
+        }), prisma.checkInHistory.create({
+            data: { userId: userId, venueId: venueId }
+        })]);
+
+    return activeSession;
+};
+
+// statistics funksiyası
+const getVenueStats = async (venueId) => {
+    const venue = await prisma.venue.findUnique({
+        where: { id: Number(venueId) },
+        select: { statsSummary: true }
+    });
+    if (!venue) {
+        const error = new Error('Məkan tapılmadı.');
+        error.statusCode = 404;
+        throw error;
+    }
+    return venue.statsSummary || {};
+};
+
+const getLiveVenueStats = async (venueId) => {
+    const sessions = await prisma.activeSession.findMany({
+        where: { venueId: Number(venueId) },
+        include: {
+            user: {
+                include: {
+                    profile: {
+                        select: { gender: true, age: true }
+                    }
+                }
+            }
+        }
+    });
+
+    if (sessions.length === 0) {
+        return { userCount: 0, genderRatio: {}, ageRange: 'N/A' };
+    }
+
+    let maleCount = 0;
+    let femaleCount = 0;
+    const ages = [];
+
+    sessions.forEach(session => {
+        if (session.user.profile) {
+            if (session.user.profile.gender === 'MALE') maleCount++;
+            if (session.user.profile.gender === 'FEMALE') femaleCount++;
+            if (session.user.profile.age) ages.push(session.user.profile.age);
+        }
+    });
+
+    const totalGenderedUsers = maleCount + femaleCount;
+    const genderRatio = {
+        male: totalGenderedUsers > 0 ? Math.round((maleCount / totalGenderedUsers) * 100) : 0,
+        female: totalGenderedUsers > 0 ? Math.round((femaleCount / totalGenderedUsers) * 100) : 0,
+    };
+
+    let ageRange = 'N/A';
+    if (ages.length > 0) {
+        const minAge = Math.min(...ages);
+        const maxAge = Math.max(...ages);
+        ageRange = `${minAge}-${maxAge}`;
+    }
+
+    return {
+        userCount: sessions.length,
+        genderRatio,
+        ageRange
+    };
+};
 module.exports = {
-  checkInUser,
-  seedDatabaseWithVenues,
+    checkInUser,
+    seedDatabaseWithVenues,
+    setIncognitoStatus,
+    finalizeCheckIn, getVenueStats, getLiveVenueStats
 };

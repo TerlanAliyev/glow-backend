@@ -6,39 +6,7 @@ const asyncHandler = (fn) => (req, res, next) => {
     Promise.resolve(fn(req, res, next)).catch(next);
 };
 
-// const registerUser = asyncHandler (req, res) => {
-//   // 1. Gələn datanın yoxlanılması (Validation)
-//   const errors = validationResult(req);
-//   if (!errors.isEmpty()) {
-//     return res.status(400).json({ errors: errors.array() });
-//   }
 
-//   try {
-//     // 2. Bütün biznes məntiqini Service qatmanına ötürmək
-//     const { user, token } = await authService.registerNewUser(req.body);
-
-//     // 3. Uğurlu nəticəni istifadəçiyə geri göndərmək
-//     res.status(201).json({
-//       message: 'İstifadəçi uğurla qeydiyyatdan keçdi!',
-//       user: {
-//         id: user.id,
-//         email: user.email,
-//         profile: user.profile,
-//       },
-//       token,
-//     });
-//   } catch (error) {
-//     // 4. Xəta baş verərsə, onu idarə etmək
-//     // Əgər email artıq mövcuddursa, Service xüsusi bir xəta atacaq
-//     if (error.code === 'P2002' && error.meta?.target?.includes('email')) {
-//         return res.status(409).json({ message: 'Bu email artıq istifadə olunur.' });
-//     }
-    
-//     // Digər gözlənilməz xətalar üçün
-//     console.error("Registration Error:", error);
-//     res.status(500).json({ message: 'Serverdə xəta baş verdi.' });
-//   }
-// };
 
 // YENİ ƏLAVƏ OLUNAN FUNKSİYA: loginUser
 const registerUser = asyncHandler(async (req, res) => {
@@ -54,32 +22,23 @@ const registerUser = asyncHandler(async (req, res) => {
     });
 });
 
-// const loginUser = async (req, res) => {
-//   const errors = validationResult(req);
-//   if (!errors.isEmpty()) {
-//     return res.status(400).json({ errors: errors.array() });
-//   }
 
-//   try {
-//     const { user, token } = await authService.loginUser(req.body);
-
-//     res.status(200).json({
-//       message: 'Sistemə uğurla daxil oldunuz!',
-//       user,
-//       token,
-//     });
-//   } catch (error) {
-//     // Servisdən gələn xətanı tuturuq
-//     res.status(401).json({ message: error.message });
-//   }
-// };
 const loginUser = asyncHandler(async (req, res) => {
     const errors = validationResult(req);
     if (!errors.isEmpty()) {
         return res.status(400).json({ errors: errors.array() });
     }
-    const { user, token } = await authService.loginUser(req.body);
-    res.status(200).json({ message: 'Sistemə uğurla daxil oldunuz!', user, token });
+    
+    // Servisdən gələn cavabı düzgün şəkildə alırıq
+    const { user, accessToken, refreshToken } = await authService.loginUser(req.body);
+    
+    // Və cavabda da bu yeni adlarla qaytarırıq
+    res.status(200).json({ 
+        message: 'Sistemə uğurla daxil oldunuz!', 
+        user, 
+        accessToken, 
+        refreshToken 
+    });
 });
 
 const getMyProfile = asyncHandler(async (req, res) => {
@@ -126,7 +85,17 @@ const resetPassword = asyncHandler(async (req, res) => {
     await authService.resetPassword(email, token, password);
     res.status(200).json({ message: 'Şifrəniz uğurla yeniləndi.' });
 });
+const initiateEmailChange = asyncHandler(async (req, res) => {
+    const { newEmail } = req.body;
+    await authService.initiateEmailChange(req.user.userId, newEmail);
+    res.status(200).json({ message: 'Təsdiq kodu yeni e-poçt ünvanınıza göndərildi.' });
+});
 
+const confirmEmailChange = asyncHandler(async (req, res) => {
+    const { otp } = req.body;
+    await authService.confirmEmailChange(req.user.userId, otp);
+    res.status(200).json({ message: 'E-poçt ünvanınız uğurla yeniləndi.' });
+});
 
 // Yeni funksiyanı export edirik
 module.exports = {
@@ -137,4 +106,6 @@ module.exports = {
   logoutUser,forgotPassword,
     verifyOtp,
     resetPassword,
+    initiateEmailChange,
+    confirmEmailChange
 };

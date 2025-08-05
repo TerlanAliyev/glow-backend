@@ -22,54 +22,60 @@ const registerDevice = async (userId, deviceToken) => {
 };
 
 // Push bildiriş göndər
-const sendPushNotification = async (userId, title, body, data = {}, tokensOverride = null) => {
-  try {
-    let tokens = [];
-    
-    // Əgər birbaşa token siyahısı verilibsə, onu istifadə edirik (broadcast üçün)
-    if (tokensOverride) {
-        tokens = tokensOverride;
-    } 
-    // Əks halda, userId-yə görə cihazları tapırıq (fərdi bildiriş üçün)
-    else if (userId) {
+
+const sendPushNotification = async (userId, title, body, data = {}, notificationType) => {
+    try {
+        // ADDIM 1: Əgər bildirişin növü verilibsə, istifadəçinin ayarlarını yoxla
+        if (notificationType) {
+            const user = await prisma.user.findUnique({
+                where: { id: userId },
+                include: { profile: true }
+            });
+
+            // Əgər istifadəçi və ya profili yoxdursa, heç nə etmə
+            if (!user || !user.profile) return;
+
+            // İstifadəçinin bu növ bildirişə icazə verib-vermədiyini yoxla
+            const canSend = 
+                (notificationType === 'NEW_SIGNAL' && user.profile.notifyOnNewSignal) ||
+                (notificationType === 'NEW_MATCH' && user.profile.notifyOnNewMatch) ||
+                (notificationType === 'NEW_MESSAGE' && user.profile.notifyOnNewMessage);
+
+            // Əgər icazə yoxdursa, funksiyanı dayandır
+            if (!canSend) {
+                console.log(`Bildiriş göndərilmədi: İstifadəçi ${userId} "${notificationType}" növ bildirişləri deaktiv edib.`);
+                return;
+            }
+        }
+
+        // ADDIM 2: İcazə varsa (və ya yoxlama tələb olunmursa), cihazları tap və bildirişi göndər
         const devices = await prisma.device.findMany({ where: { userId } });
         if (devices.length === 0) {
             console.log(`Bildiriş göndərilmədi: İstifadəçi ${userId} üçün heç bir cihaz tapılmadı.`);
             return;
         }
-        tokens = devices.map(device => device.token);
-    } else {
-        return { message: "Heç bir hədəf (userId və ya tokens) göstərilmədi." };
+        const tokens = devices.map(device => device.token);
+
+        if (tokens.length === 0) return;
+
+        // Firebase-ə göndərmə məntiqi (bu hissə dəyişməz qalıb)
+        const tokenChunks = [];
+        for (let i = 0; i < tokens.length; i += 500) {
+            tokenChunks.push(tokens.slice(i, i + 500));
+        }
+
+        for (const chunk of tokenChunks) {
+            const message = {
+                notification: { title, body },
+                data,
+                tokens: chunk,
+            };
+            await admin.messaging().sendMulticast(message);
+        }
+
+    } catch (error) {
+        console.error(`Push bildiriş zamanı xəta:`, error);
     }
-
-    if (tokens.length === 0) return { successCount: 0, failureCount: 0 };
-
-    // Firebase-in limiti 500 tokendir. Siyahını hissələrə bölürük.
-    const tokenChunks = [];
-    for (let i = 0; i < tokens.length; i += 500) {
-        tokenChunks.push(tokens.slice(i, i + 500));
-    }
-
-    let totalSuccessCount = 0;
-    let totalFailureCount = 0;
-
-    for (const chunk of tokenChunks) {
-        const message = {
-            notification: { title, body },
-            data,
-            tokens: chunk,
-        };
-        const response = await admin.messaging().sendMulticast(message);
-        totalSuccessCount += response.successCount;
-        totalFailureCount += response.failureCount;
-    }
-
-    console.log(`Push bildiriş göndərildi: ${totalSuccessCount} uğurlu, ${totalFailureCount} uğursuz.`);
-    return { successCount: totalSuccessCount, failureCount: totalFailureCount };
-
-  } catch (error) {
-    console.error(`Push bildiriş zamanı xəta:`, error);
-  }
 };
 const createAndSendNotification = async (userId, type, content, data = {}) => {
   // 1. Bildirişi databazada yaradırıq
@@ -87,11 +93,28 @@ const createAndSendNotification = async (userId, type, content, data = {}) => {
   const body = bodyParts.join('!').trim();
   await sendPushNotification(userId, title, body, data);
 };
-const getNotificationsForUser = async (userId) => {
-  return prisma.notification.findMany({
-    where: { userId },
-    orderBy: { createdAt: 'desc' },
-  });
+// src/notification/notification.service.js
+
+const getNotificationsForUser = async (userId, page = 1, limit = 20) => {
+    const skip = (page - 1) * limit;
+
+    // Eyni anda həm bildirişləri, həm də ümumi sayı alırıq
+    const [notifications, total] = await prisma.$transaction([
+        prisma.notification.findMany({
+            where: { userId },
+            orderBy: { createdAt: 'desc' },
+            skip: skip,
+
+            take: limit,
+        }),
+        prisma.notification.count({ where: { userId } })
+    ]);
+
+    return {
+        data: notifications,
+        totalPages: Math.ceil(total / limit),
+        currentPage: page
+    };
 };
  const markAsRead = async (userId, notificationId) => {
   // Əvvəlcə bildirişin bu istifadəçiyə aid olduğunu yoxlayırıq

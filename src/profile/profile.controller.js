@@ -60,8 +60,32 @@ const uploadPhotos = asyncHandler(async (req, res) => {
     const updatedProfile = await profileService.addPhotosToProfile(userId, files);
     res.status(200).json({ message: `${files.length} şəkil uğurla yükləndi!`, profile: updatedProfile });
 });
+const deletePhoto = asyncHandler(async (req, res) => {
+    const { photoId } = req.params;
+    const userId = req.user.userId;
+    await profileService.deletePhoto(userId, photoId);
+    res.status(200).json({ message: 'Şəkil uğurla silindi.' });
+});
+const setPrimaryPhoto = asyncHandler(async (req, res) => {
+    const { photoId } = req.params;
+    const userId = req.user.userId;
+    await profileService.setPrimaryPhoto(userId, photoId);
+    res.status(200).json({ message: 'Əsas profil şəkli uğurla dəyişdirildi.' });
+});
+const updateMyPreferences = asyncHandler(async (req, res) => {
+    const updatedProfile = await profileService.updateUserPreferences(req.user.userId, req.body);
+    res.status(200).json({ message: 'Seçimləriniz uğurla yadda saxlanıldı.', profile: updatedProfile });
+});
+// Bunu da `module.exports`-ə əlavə edin
+//Premium function to get profile views
+const getMyProfileViews = asyncHandler(async (req, res) => {
+    const views = await profileService.getProfileViews(req.user.userId);
+    res.status(200).json(views);
+});
+
 module.exports = {
     updateMyProfile,
     uploadAvatar,
-    uploadPhotos
+    uploadPhotos,
+    getMyProfileViews,deletePhoto,setPrimaryPhoto,updateMyPreferences
 };

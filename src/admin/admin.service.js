@@ -1,5 +1,6 @@
 
 const prisma = require('../config/prisma');
+const { calculateVenueStatistics } = require('../scheduler/scheduler.service');
 
 const getStatsSummary = async () => {
     const today = new Date();
@@ -142,7 +143,8 @@ const getReports = async () => {
         include: {
             reporter: { include: { profile: true } },
             reportedUser: { include: { profile: true } },
-            reportedMessage: true, // Mesaj məlumatlarını da əlavə edirik
+            reportedMessage: true,        // Şəxsi mesaj məlumatları
+            reportedGroupMessage: true,   // YENİ: Qrup mesajı məlumatları
         }
     });
 };
@@ -158,27 +160,36 @@ const updateReportStatus = async (reportId, status) => {
     });
 };
 
-const getUserConnections = async (userId) => {
-    // Addım 1: İstifadəçinin mövcudluğunu yoxlayırıq
-    const user = await prisma.user.findUnique({ where: { id: userId } });
-    if (!user) {
-        const error = new Error('Bu ID ilə istifadəçi tapılmadı.');
-        error.statusCode = 404;
-        throw error;
+const updateUserContact = async (userId, data) => {
+    const { email, phoneNumber } = data;
+    const updates = [];
+
+    // Əgər email göndərilibsə, User modelini yeniləmək üçün hazırlıq gör
+    if (email) {
+        updates.push(prisma.user.update({
+            where: { id: userId },
+            data: { email: email },
+        }));
     }
 
-    // Addım 2: Əgər istifadəçi varsa, bağlantıları gətiririk
-    return prisma.connection.findMany({
-        where: { OR: [{ userAId: userId }, { userBId: userId }] },
-        include: {
-            userA: { include: { profile: true } },
-            userB: { include: { profile: true } },
-        },
-        orderBy: { createdAt: 'desc' }
-    });
+    // Əgər telefon nömrəsi göndərilibsə, Profile modelini yeniləmək üçün hazırlıq gör
+    if (phoneNumber !== undefined) { // Boş string göndərilə bilər (nömrəni silmək üçün)
+        updates.push(prisma.profile.update({
+            where: { userId: userId },
+            data: { phoneNumber: phoneNumber },
+        }));
+    }
+
+    // Bütün yeniləmələri tək bir tranzaksiyada icra et
+    if (updates.length > 0) {
+        return prisma.$transaction(updates);
+    }
+
+    return { message: "Yeniləmək üçün heç bir məlumat göndərilmədi." };
 };
+// src/admin/admin.service.js
 
-const getUserReports = async (userId) => {
+const getUserConnections = async (userId, { page = 1, limit = 10 }) => {
     // Addım 1: İstifadəçinin mövcudluğunu yoxlayırıq
     const user = await prisma.user.findUnique({ where: { id: userId } });
     if (!user) {
@@ -187,14 +198,62 @@ const getUserReports = async (userId) => {
         throw error;
     }
 
-    // Addım 2: Əgər istifadəçi varsa, şikayətləri gətiririk
-    return prisma.report.findMany({
-        where: { reportedUserId: userId },
-        include: {
-            reporter: { select: { id: true, email: true, profile: { select: { name: true } } } }
-        },
-        orderBy: { createdAt: 'desc' }
-    });
+    const skip = (page - 1) * limit;
+    const where = { OR: [{ userAId: userId }, { userBId: userId }] };
+
+    // Eyni anda həm bağlantıları, həm də ümumi sayı alırıq
+    const [connections, total] = await prisma.$transaction([
+        prisma.connection.findMany({
+            where,
+            include: {
+                userA: { include: { profile: true } },
+                userB: { include: { profile: true } },
+            },
+            orderBy: { createdAt: 'desc' },
+            skip,
+            take: limit
+        }),
+        prisma.connection.count({ where })
+    ]);
+
+    return {
+        data: connections,
+        totalPages: Math.ceil(total / limit),
+        currentPage: page
+    };
+};
+// src/admin/admin.service.js
+
+const getUserReports = async (userId, { page = 1, limit = 10 }) => {
+    // İstifadəçinin mövcudluğunu yoxlayırıq
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) {
+        const error = new Error('Bu ID ilə istifadəçi tapılmadı.');
+        error.statusCode = 404;
+        throw error;
+    }
+
+    const skip = (page - 1) * limit;
+    const where = { reportedUserId: userId };
+
+    const [reports, total] = await prisma.$transaction([
+        prisma.report.findMany({
+            where,
+            include: {
+                reporter: { select: { id: true, email: true, profile: { select: { name: true } } } }
+            },
+            orderBy: { createdAt: 'desc' },
+            skip,
+            take: limit
+        }),
+        prisma.report.count({ where })
+    ]);
+
+    return {
+        data: reports,
+        totalPages: Math.ceil(total / limit),
+        currentPage: page
+    };
 };
 
 const getUserActivity = async (userId) => {
@@ -220,13 +279,15 @@ const getUserActivity = async (userId) => {
         lastCheckIn: lastCheckIn?.createdAt || null,
     };
 };
-const getBannedUsers = async () => {
-    const users = await prisma.user.findMany({
-        where: { isActive: false },
-        include: { profile: true, role: true },
-        orderBy: { updatedAt: 'desc' },
-    });
-    return users.map(u => { delete u.password; return u; });
+const getBannedUsers = async ({ page = 1, limit = 10 }) => {
+    const skip = (page - 1) * limit;
+    const where = { isActive: false };
+    const [users, total] = await prisma.$transaction([
+        prisma.user.findMany({ where, include: { profile: true, role: true }, orderBy: { updatedAt: 'desc' }, skip, take: limit }),
+        prisma.user.count({ where })
+    ]);
+    const data = users.map(u => { delete u.password; return u; });
+    return { data, totalPages: Math.ceil(total / limit), currentPage: page };
 };
 
 const deleteUser = async (targetUserId, adminId) => {
@@ -322,20 +383,38 @@ const getPopularVenues = async () => {
 
 
 // Venues
-const getVenues = async () => prisma.venue.findMany({ orderBy: { name: 'asc' } });
-const createVenue = async (data) => prisma.venue.create({ data });
+const getVenues = async ({ page = 1, limit = 10 }) => {
+    const skip = (page - 1) * limit;
+    const [venues, total] = await prisma.$transaction([
+        prisma.venue.findMany({ orderBy: { name: 'asc' }, skip, take: limit }),
+        prisma.venue.count()
+    ]);
+    return { data: venues, totalPages: Math.ceil(total / limit), currentPage: page };
+};
+
+const createVenue = async (data) => {
+    // Artıq 'category' sahəsini də qəbul edirik
+    const { name, address, latitude, longitude, description, category } = data;
+    return prisma.venue.create({ 
+        data: { name, address, latitude, longitude, description, category } 
+    });
+};
 const updateVenue = async (id, data) => {
-    // Yalnız sxemdə mövcud olan sahələri yeniləyirik
-    const { name, address, latitude, longitude, description } = data;
+    // Frontend-dən gələ biləcək bütün mümkün sahələri qeyd edirik
+    const { name, address, latitude, longitude, description, category } = data;
+    
+    // Yalnız göndərilən sahələrdən ibarət yeni bir obyekt yaradırıq
+    const dataToUpdate = {};
+    if (name !== undefined) dataToUpdate.name = name;
+    if (address !== undefined) dataToUpdate.address = address;
+    if (latitude !== undefined) dataToUpdate.latitude = parseFloat(latitude);
+    if (longitude !== undefined) dataToUpdate.longitude = parseFloat(longitude);
+    if (description !== undefined) dataToUpdate.description = description;
+    if (category !== undefined) dataToUpdate.category = category;
+
     return prisma.venue.update({ 
-        where: { id }, 
-        data: {
-            name,
-            address,
-            latitude,
-            longitude,
-            description // Yeni sahəni əlavə edirik
-        } 
+        where: { id: id }, 
+        data: dataToUpdate 
     });
 };
 const deleteVenue = async (id) => prisma.venue.delete({ where: { id } });
@@ -519,8 +598,32 @@ const getBroadcastHistory = async () => {
 };
 
 
+// Icebreaker Questions
+const getIcebreakers = async () => prisma.icebreakerQuestion.findMany({ orderBy: { createdAt: 'desc' } });
+const createIcebreaker = async (text,category) => prisma.icebreakerQuestion.create({ data: { text,category } });
+const updateIcebreaker = async (id, data) => {
+    const { text, category } = data; // Artıq 'category' də qəbul edir
+    return prisma.icebreakerQuestion.update({ where: { id: Number(id) }, data: { text, category } });
+};
+const deleteIcebreaker = async (id) => prisma.icebreakerQuestion.delete({ where: { id: Number(id) } });
 
 
+//Premium-Free
+const updateUserSubscription = async (userId, subscriptionType) => {
+    if (!['FREE', 'PREMIUM'].includes(subscriptionType.toUpperCase())) {
+        throw new Error('Yanlış abunəlik tipi.');
+    }
+    return prisma.user.update({
+        where: { id: userId },
+        data: { subscription: subscriptionType.toUpperCase() },
+    });
+};
+
+const triggerVenueStatCalculation = async () => {
+    // Birbaşa scheduler-dəki funksiyanı çağırırıq
+    calculateVenueStatistics();
+    return { message: "Məkan statistikalarının hesablanması prosesi arxa planda başladıldı. Nəticələrin görünməsi bir neçə dəqiqə çəkə bilər." };
+};
 
 module.exports = {
      getUsers, updateUserRole, updateUserStatus, getReports, updateReportStatus,
@@ -535,4 +638,7 @@ module.exports = {
     getPopularVenues,getRoles, getUsersList,updateCategory,
     deleteCategory,getBannedUsers,
     deleteUser,
+    getIcebreakers, createIcebreaker, updateIcebreaker, deleteIcebreaker,
+    updateUserSubscription,updateUserContact,triggerVenueStatCalculation
+    
 };

@@ -3,88 +3,99 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const { OAuth2Client } = require('google-auth-library');
 const googleClient = new OAuth2Client();
-const { sendPasswordResetEmail } = require('../config/mailer'); // Yeni import
+const { sendPasswordResetEmail, sendEmailChangeConfirmationEmail } = require('../config/mailer');
+
+const generateAndStoreTokens = async (userId) => {
+    // 1. Access Token yarat (ömrü qısa: 15 dəqiqə)
+    const accessToken = jwt.sign({ userId }, process.env.JWT_SECRET, {
+        expiresIn: process.env.ACCESS_TOKEN_EXPIRATION || '15m',
+    });
+
+    // 2. Refresh Token yarat (ömrü uzun: 30 gün)
+    const refreshToken = jwt.sign({ userId }, process.env.REFRESH_TOKEN_SECRET, {
+        expiresIn: process.env.REFRESH_TOKEN_EXPIRATION || '30d',
+    });
+
+    // 3. Refresh Token-i verilənlər bazasına yadda saxla
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
+    
+    // İstifadəçinin köhnə refresh tokenlərini silib, yenisini əlavə edirik
+    await prisma.refreshToken.deleteMany({ where: { userId: userId } });
+    await prisma.refreshToken.create({
+        data: { token: refreshToken, expiresAt, userId: userId }
+    });
+
+    return { accessToken, refreshToken };
+};
 
 const registerNewUser = async (userData) => {
-  const { email, password, name, age, gender } = userData;
-  const hashedPassword = await bcrypt.hash(password, 10);
-  const newUser = await prisma.user.create({
-    data: {
-      email,
-      password: hashedPassword,
-      profile: {
-        create: {
-          name,
-          age,
-          gender,
+    const { email, password, name, age, gender } = userData;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    
+    const threeDaysFromNow = new Date();
+    threeDaysFromNow.setDate(threeDaysFromNow.getDate() + 3);
+
+    const newUser = await prisma.user.create({
+        data: {
+            email,
+            password: hashedPassword,
+            premiumExpiresAt: threeDaysFromNow,
+            profile: { create: { name, age, gender } },
         },
-      },
-    },
-    include: {
-      profile: true,
-    },
-  });
-  const token = jwt.sign(
-    { userId: newUser.id },
-    process.env.JWT_SECRET || 'super_gizli_bir_acar_stringi',
-    { expiresIn: '7d' }
-  );
-  return { user: newUser, token };
+        include: { profile: true },
+    });
+
+    const { accessToken, refreshToken } = await generateAndStoreTokens(newUser.id);
+    
+    delete newUser.password;
+    return { user: newUser, accessToken, refreshToken };
 };
+
 
 const loginUser = async (loginData) => {
-  const { email, password } = loginData;
+    const { email, password } = loginData;
+    const user = await prisma.user.findUnique({
+        where: { email },
+        include: { profile: true, role: true },
+    });
 
-  const user = await prisma.user.findUnique({
-    where: { email },
-    include: { profile: true,role:true },
-  });
+    // İstifadəçi yoxlaması (daha təhlükəsiz versiya)
+    const isPasswordValid = user ? await bcrypt.compare(password, user.password) : false;
 
-  if (!user) {
-    throw new Error('Email və ya şifrə yanlışdır.');
-  }
-if (!user.isActive) {
-    const error = new Error('Bu hesab admin tərəfindən deaktiv edilib.');
-    error.statusCode = 403; // 403 Forbidden
-    throw error;
-  }
-  const isPasswordValid = await bcrypt.compare(password, user.password);
-  if (!isPasswordValid) {
-    throw new Error('Email və ya şifrə yanlışdır.');
-  }
+    if (!user || !user.isActive || !isPasswordValid) {
+        const error = new Error('Email və ya şifrə yanlışdır.');
+        error.statusCode = 401;
+        throw error;
+    }
 
-  const token = jwt.sign(
-    { userId: user.id },
-    process.env.JWT_SECRET || 'super_gizli_bir_acar_stringi',
-    { expiresIn: '7d' }
-  );
+    // Access Token yarat (ömrü qısa: 15 dəqiqə)
+    const accessToken = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, {
+        expiresIn: process.env.ACCESS_TOKEN_EXPIRATION || '15m',
+    });
 
-  delete user.password;
-  
-  return { user, token };
+    // Refresh Token yarat (ömrü uzun: 30 gün)
+    const refreshToken = jwt.sign({ userId: user.id }, process.env.REFRESH_TOKEN_SECRET, {
+        expiresIn: process.env.REFRESH_TOKEN_EXPIRATION || '30d',
+    });
+
+    // Refresh Token-i verilənlər bazasına yadda saxla
+    const expiresAt = new Date();
+    expiresAt.setDate(expiresAt.getDate() + 30);
+    
+    // Köhnə tokenləri silib yenisini əlavə edirik ki, cədvəl böyüməsin
+    await prisma.refreshToken.deleteMany({ where: { userId: user.id } });
+    await prisma.refreshToken.create({
+        data: { token: refreshToken, expiresAt, userId: user.id }
+    });
+
+    delete user.password;
+    
+    // YEKUN CAVAB: Hər üç obyekti düzgün adlarla qaytarırıq
+    return { user, accessToken, refreshToken };
 };
-const getUserProfileById = async (userId) => {
-  // Verilən ID-yə görə istifadəçini tapırıq (profili ilə birlikdə)
-  const user = await prisma.user.findUnique({
-    where: {
-      id: userId,
-    },
-    include: {
-      profile: true,
-    },
-  });
 
-  // Əgər istifadəçi tapılmazsa, xəta atırıq.
-  if (!user) {
-    // Bu xəta Controller tərəfindən tutulacaq və 404 olaraq göndəriləcək.
-    throw new Error('Bu ID ilə istifadəçi tapılmadı.');
-  }
 
-  // Təhlükəsizlik üçün şifrə heşini nəticədən silirik.
-  delete user.password;
-
-  return user;
-};
 const loginWithGoogle = async (idToken) => {
     let ticket;
     try {
@@ -100,55 +111,81 @@ const loginWithGoogle = async (idToken) => {
     }
 
     const payload = ticket.getPayload();
-    const { email, name, sub: googleId, picture: avatarUrl } = payload;
+    const { email, name, sub: googleId } = payload;
 
+    // Mövcud istifadəçini e-poçt ilə axtarırıq
     let user = await prisma.user.findUnique({
-        where: { googleId },
-        include: { profile: true },
+        where: { email },
+        include: { profile: true }
     });
+    
+    let message = 'Sistemə uğurla daxil oldunuz!';
 
-    if (user) {
-        const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET || 'super_gizli_bir_acar_stringi', { expiresIn: '7d' });
-        delete user.password;
-        return { user, token, message: 'Sistemə uğurla daxil oldunuz!' };
-    }
-
-    let existingUserByEmail = await prisma.user.findUnique({ where: { email } });
-    if (existingUserByEmail) {
-        user = await prisma.user.update({
-            where: { email },
-            data: { googleId },
-            include: { profile: true },
-        });
-    } else {
+    if (!user) {
+        // Əgər istifadəçi yoxdursa, yenisini yaradırıq
         user = await prisma.user.create({
             data: {
                 email,
                 googleId,
                 authProvider: 'GOOGLE',
                 profile: {
-                    create: {
-                        name: name,
-                        age: 18,
-                        gender: 'OTHER',
-                        avatarUrl: avatarUrl,
-                    },
+                    create: { name: name, age: 18, gender: 'OTHER' },
                 },
             },
             include: { profile: true },
         });
+        message = 'Hesabınız uğurla yaradıldı!';
+    } else if (!user.googleId) {
+        // Əgər e-poçt var, amma Google ilə bağlanmayıbsa, googleId-ni əlavə edirik
+        user = await prisma.user.update({
+            where: { email },
+            data: { googleId },
+            include: { profile: true },
+        });
     }
 
-    const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET || 'super_gizli_bir_acar_stringi', { expiresIn: '7d' });
+    // DÜZƏLİŞ: Artıq hər iki tokeni yaradıb qaytarırıq
+    const { accessToken, refreshToken } = await generateAndStoreTokens(user.id);
+    
     delete user.password;
-    return { user, token, message: 'Hesabınız uğurla yaradıldı!' };
+    return { user, accessToken, refreshToken, message };
 };
-const logoutUser = async (userId) => {
-    await prisma.activeSession.deleteMany({
-        where: {
-            userId: userId,
+const refreshAccessToken = async (oldRefreshToken) => {
+    const dbToken = await prisma.refreshToken.findUnique({ where: { token: oldRefreshToken } });
+
+    if (!dbToken || dbToken.expiresAt < new Date()) {
+        throw new Error('Refresh token etibarlı deyil və ya vaxtı bitib.');
+    }
+    const payload = jwt.verify(oldRefreshToken, process.env.REFRESH_TOKEN_SECRET);
+    const newAccessToken = jwt.sign({ userId: payload.userId }, process.env.JWT_SECRET, {
+        expiresIn: process.env.ACCESS_TOKEN_EXPIRATION || '15m',
+    });
+    return { accessToken: newAccessToken };
+};
+
+const getUserProfileById = async (userId) => {
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          profile: { include: { photos: true, interests: true } },
+          role: true
         },
     });
+    if (!user) {
+        const error = new Error('Bu ID ilə istifadəçi tapılmadı.');
+        error.statusCode = 404;
+        throw error;
+    }
+    delete user.password;
+    return user;
+};
+
+const logoutUser = async (userId) => {
+    // Həm aktiv sessiyaları, həm də bütün refresh tokenləri silirik
+    await prisma.$transaction([
+        prisma.activeSession.deleteMany({ where: { userId: userId } }),
+        prisma.refreshToken.deleteMany({ where: { userId: userId } })
+    ]);
     return { success: true };
 };
 const requestPasswordReset = async (email) => {
@@ -223,7 +260,45 @@ const resetPassword = async (email, token, newPassword) => {
         })
     ]);
 };
+const initiateEmailChange = async (userId, newEmail) => {
+    // Yeni e-poçtun artıq istifadə olunub-olunmadığını yoxlayaq
+    const emailExists = await prisma.user.findUnique({ where: { email: newEmail } });
+    if (emailExists) {
+        const error = new Error('Bu e-poçt ünvanı artıq başqa bir hesab tərəfindən istifadə olunur.');
+        error.statusCode = 409; // Conflict
+        throw error;
+    }
 
+    await prisma.emailChangeToken.deleteMany({ where: { userId: userId } });
+    const token = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(new Date().getTime() + 10 * 60 * 1000); // 10 dəqiqə sonra
+
+    await prisma.emailChangeToken.create({
+        data: { token, expiresAt, userId, newEmail },
+    });
+
+    await sendEmailChangeConfirmationEmail(newEmail, token);
+};
+
+const confirmEmailChange = async (userId, otp) => {
+    const changeRequest = await prisma.emailChangeToken.findFirst({
+        where: { userId, token: otp, expiresAt: { gte: new Date() } },
+    });
+
+    if (!changeRequest) {
+        const error = new Error('Təsdiq kodu yanlışdır və ya vaxtı bitib.');
+        error.statusCode = 400;
+        throw error;
+    }
+
+    await prisma.$transaction([
+        prisma.user.update({
+            where: { id: userId },
+            data: { email: changeRequest.newEmail },
+        }),
+        prisma.emailChangeToken.deleteMany({ where: { userId: userId } }),
+    ]);
+};
 
 module.exports = {
   registerNewUser,
@@ -233,4 +308,7 @@ module.exports = {
   logoutUser,requestPasswordReset,
     verifyPasswordResetOTP,
     resetPassword,
+  initiateEmailChange,
+  confirmEmailChange,
+  refreshAccessToken
 };

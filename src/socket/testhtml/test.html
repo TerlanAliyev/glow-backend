@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Lyra Super Test Client (Fixed)</title>
+    <title>Lyra Super Test Client (All Features)</title>
     <style>
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
@@ -23,7 +23,8 @@
             margin-bottom: 20px;
         }
 
-        h1, h2 {
+        h1,
+        h2 {
             color: #000;
         }
 
@@ -33,7 +34,9 @@
             min-height: 40px;
         }
 
-        input, textarea, button {
+        input,
+        textarea,
+        button {
             width: 100%;
             padding: 12px;
             margin-bottom: 10px;
@@ -56,11 +59,6 @@
             background-color: #005bb5;
         }
 
-        button:disabled {
-            background-color: #d2d2d7;
-            cursor: not-allowed;
-        }
-
         .grid-2 {
             display: grid;
             grid-template-columns: 1fr 1fr;
@@ -76,7 +74,6 @@
             font-family: 'SF Mono', 'Courier New', monospace;
             font-size: 14px;
             white-space: pre-wrap;
-            margin-top: 10px;
         }
 
         .status {
@@ -96,7 +93,8 @@
             color: white;
         }
 
-        #compassResults, #connections, #incomingSignals {
+        #compassResults,
+        #connections {
             min-height: 50px;
             padding: 15px;
             border: 2px dashed #007aff;
@@ -130,123 +128,261 @@
             cursor: pointer;
         }
 
-        .connection-card:hover {
-            background-color: #d4f5dc;
-        }
-
-        .signal-card {
-            background-color: #fff5e0;
-            padding: 10px;
-            border-radius: 6px;
-            margin-bottom: 5px;
-            border-left: 5px solid #ff9500;
-        }
-
-        .log-entry.sent {
-            color: #007aff;
-        }
-
-        .log-entry.received {
-            color: #34c759;
-        }
-
-        .log-entry.error {
-            color: #ff3b30;
-        }
-
-        #chatRoom {
+        #chatRoom,
+        #groupChatRoom {
             display: none;
         }
 
-        #chatMessages {
+        #chatMessages,
+        #groupChatMessages {
             max-height: 300px;
             overflow-y: auto;
             border: 1px solid #d2d2d7;
             border-radius: 8px;
             padding: 10px;
             margin-bottom: 10px;
-            background-color: #f9f9f9;
         }
 
-        .message {
+        .message,
+        .group-message {
             margin-bottom: 10px;
             padding: 8px 12px;
-            border-radius: 12px;
-            max-width: 70%;
+            border-radius: 18px;
+            max-width: 80%;
+            word-wrap: break-word;
         }
 
         .message.sent {
             background-color: #007aff;
             color: white;
             margin-left: auto;
-            text-align: right;
+            text-align: left;
         }
 
         .message.received {
             background-color: #e5e5ea;
-            color: #1d1d1f;
         }
 
         .sender {
             font-size: 12px;
             font-weight: 600;
             margin-bottom: 4px;
-            color: #666;
+            color: #6c757d;
+        }
+
+        #typingIndicator,
+        #groupTypingIndicator {
+            color: #8e8e93;
+            font-style: italic;
+            padding: 5px 10px;
+            height: 20px;
+            transition: opacity 0.3s;
+        }
+
+        .read-receipt {
+            font-size: 11px;
+            color: #a9d1ff;
+            display: inline-block;
+            margin-left: 8px;
+        }
+
+        #icebreaker-suggestions {
+            padding-top: 10px;
+            border-top: 1px solid #e5e5ea;
+            margin-top: 10px;
+        }
+
+        .suggestion-btn {
+            width: auto;
+            padding: 8px 12px;
+            margin: 0 8px 8px 0;
+            background-color: #f0f0f5;
+            color: #007aff;
+            border: 1px solid #007aff;
+            cursor: pointer;
+            border-radius: 20px;
+            font-size: 14px;
+        }
+
+        .group-message {
+            background-color: #f2f2f7;
+        }
+
+        .group-message .sender {
+            color: #007aff;
+        }
+
+        .group-message-own {
+            background-color: #e5e5ea;
+            margin-left: auto;
+        }
+
+        .chat-image {
+            max-width: 200px;
+            border-radius: 12px;
+            margin-top: 5px;
+        }
+
+        .upload-area {
+            display: flex;
+            align-items: center;
+        }
+
+        .upload-area input[type="file"] {
+            flex-grow: 1;
+        }
+
+        .reactions {
+            position: absolute;
+            top: -25px;
+            /* Mesajın biraz üstündə */
+            left: 5px;
+            background: #fff;
+            border-radius: 10px;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2);
+            display: flex;
+            padding: 2px;
+            opacity: 0;
+            /* Standart olaraq gizli */
+            transition: opacity 0.2s;
+            pointer-events: none;
+            /* Kliklənməsin */
+        }
+
+        /* DÜZƏLİŞ BURADADIR: Artıq birbaşa mesajın özünə hover edirik */
+        .group-message:hover .reactions {
+            opacity: 1;
+            /* Üzərinə gələndə görünən et */
+            pointer-events: auto;
+            /* Kliklənə bilən et */
+        }
+
+        .reaction-emoji {
+            cursor: pointer;
+            padding: 2px 4px;
+            font-size: 16px;
+        }
+
+        .reaction-display {
+            position: absolute;
+            bottom: -5px;
+            right: 10px;
+            background: #e5e5ea;
+            border-radius: 10px;
+            padding: 1px 5px;
+            font-size: 12px;
+        }
+
+        .message-container {
+            position: relative;
+            margin-bottom: 10px;
+        }
+
+        .message,
+        .group-message {
+            padding: 8px 12px;
+            border-radius: 18px;
+            max-width: 80%;
+            word-wrap: break-word;
+            display: inline-block;
+            position: relative;
+            /* Vacibdir */
+        }
+
+        .message-container.sent {
+            text-align: right;
+        }
+
+        .message.sent {
+            background-color: #007aff;
+            color: white;
+            text-align: left;
+        }
+
+        .message.received,
+        .group-message {
+            background-color: #e5e5ea;
         }
     </style>
 </head>
 
 <body>
 
-    <h1 id="currentUser">Lyra Super Test Client (Fixed)</h1>
+    <h1 id="currentUser">Lyra Super Test Client (All Features)</h1>
     <p style="text-align: center;">Status: <span id="status" class="status disconnected">Disconnected</span></p>
 
     <div class="container">
         <h2>1. Qoşulma</h2>
         <input type="text" id="serverUrl" value="http://localhost:3000">
-        <textarea id="authToken" placeholder="Login etdikdən sonra aldığınız JWT tokeni bura yapışdırın..."></textarea>
-        <button id="connectBtn">Connect to WebSocket</button>
-        <button id="disconnectBtn" style="display:none;">Disconnect</button>
+        <textarea id="authToken" placeholder="..."></textarea>
+        <button id="connectBtn">Connect</button>
+        <button id="disconnectBtn" style="display:none">Disconnect</button>
     </div>
 
-    <div class="container" id="actions" style="display:none;">
+    <div class="container" id="actions" style="display:none">
         <h2>2. Əməliyyatlar</h2>
+        <h4>Addım 1: Check-in</h4>
         <div class="grid-2">
-            <input type="number" id="latitude" placeholder="Latitude (məs: 40.3777)" value="40.3777">
-            <input type="number" id="longitude" placeholder="Longitude (məs: 49.8344)" value="49.8344">
+            <input type="number" id="latitude" value="40.3777">
+            <input type="number" id="longitude" value="49.8344">
         </div>
-        <button id="checkInBtn">1. Check-in via API</button>
-        <hr style="margin: 20px 0;">
-        <input type="number" id="venueId" placeholder="Venue ID (məsələn, 1)">
-        <button id="joinVenueBtn">2. Join Venue via WebSocket</button>
+        <button id="checkInBtn">Check-in</button>
+
+        <hr>
+
+        <h4>Addım 2: Məkana Qoşul</h4>
+        <input type="number" id="venueId" placeholder="Venue ID...">
+        <div class="grid-2">
+            <input type="number" id="minAge" placeholder="Min. Yaş">
+            <input type="number" id="maxAge" placeholder="Maks. Yaş">
+        </div>
+        <input type="text" id="interestIds" placeholder="Maraq ID-ləri...">
+        <button id="joinVenueBtn">Join Venue</button>
+    </div>
+
+    <div class="container" id="groupChatRoom">
+        <h2>Məkanın Ümumi Söhbəti</h2>
+        <div id="groupChatMessages"></div>
+        <div id="groupTypingIndicator"></div>
+        <textarea id="groupMessageInput" placeholder="..."></textarea>
+        <button id="sendGroupMessageBtn">Göndər</button>
+        <div class="upload-area">
+            <input type="file" id="groupImageInput" accept="image/*">
+            <button id="sendGroupImageBtn" style="width: auto; padding: 12px 20px;">Şəkil Göndər</button>
+        </div>
     </div>
 
     <div class="container">
         <h2>3. Kompas Nəticələri</h2>
         <div id="compassResults">
-            <p>Nəticələri görmək üçün məkana daxil olun...</p>
+            <p>...</p>
         </div>
     </div>
 
     <div class="container">
-        <h2>4. Gələn Siqnallar</h2>
-        <div id="incomingSignals">
-            <p>Hələ heç bir siqnal yoxdur...</p>
-        </div>
-    </div>
-
-    <div class="container">
-        <h2>5. Yeni Bağlantılar (Matches)</h2>
+        <h2>4. Yeni Bağlantılar (Matches)</h2>
         <div id="connections">
-            <p>Hələ heç bir bağlantı yoxdur...</p>
+            <p>...</p>
         </div>
     </div>
 
     <div class="container" id="chatRoom">
         <h2 id="chatWith">... ilə söhbət</h2>
-        <div id="chatMessages"></div>
-        <textarea id="messageInput" placeholder="Mesajınızı yazın..." rows="2"></textarea>
+        <div id="chatMessages" onclick="markMessagesAsRead()"></div>
+        <div id="typingIndicator"></div>
+        <div id="icebreaker-suggestions"></div>
+        <textarea id="messageInput" placeholder="..."></textarea>
         <button id="sendMessageBtn">Göndər</button>
+        <hr>
+        <div class="upload-area">
+            <input type="file" id="imageInput" accept="image/*">
+            <button id="sendImageBtn" style="width: auto; padding: 12px 20px;">Şəkil Göndər</button>
+        </div>
+        <div class="audio-recorder">
+            <button id="recordBtn" style="background-color: #ff3b30;">Səs Yaz</button>
+            <button id="stopBtn" style="display:none; background-color: #34c759;">Dayandır & Göndər</button>
+            <audio id="audioPlayer" controls style="display:none; width: 100%;"></audio>
+        </div>
     </div>
 
     <div class="container">
@@ -257,364 +393,577 @@
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
     <script>
         document.addEventListener('DOMContentLoaded', () => {
-            let socket;
-            let currentUser = null; // Bu əlavə edildi
-            let currentConnection = null; // Bu düzəldildi
-            
-            const statusEl = document.getElementById('status');
-            const connectBtn = document.getElementById('connectBtn');
-            const disconnectBtn = document.getElementById('disconnectBtn');
-            const actionsEl = document.getElementById('actions');
-            const logsEl = document.getElementById('logs');
-            const compassResultsEl = document.getElementById('compassResults');
-            const connectionsEl = document.getElementById('connections');
-            const incomingSignalsEl = document.getElementById('incomingSignals');
-            const checkInBtn = document.getElementById('checkInBtn');
-            const authTokenEl = document.getElementById('authToken');
-            const currentUserEl = document.getElementById('currentUser');
-            const sendMessageBtn = document.getElementById('sendMessageBtn');
-            const messageInputEl = document.getElementById('messageInput');
-            
-            let compassUsers = [];
+            let socket, currentUser, currentConnection, mediaRecorder, audioChunks = [];
+            let typingTimeout = null, groupTypingTimeout = null;
+            let compassUsers = [], groupTypingUsers = {}, groupReactions = {};
 
+            const elements = {
+                status: document.getElementById('status'),
+                connectBtn: document.getElementById('connectBtn'),
+                disconnectBtn: document.getElementById('disconnectBtn'),
+                actions: document.getElementById('actions'),
+                logs: document.getElementById('logs'),
+                compassResults: document.getElementById('compassResults'),
+                authToken: document.getElementById('authToken'),
+                currentUser: document.getElementById('currentUser'),
+                sendMessageBtn: document.getElementById('sendMessageBtn'),
+                messageInput: document.getElementById('messageInput'),
+                typingIndicator: document.getElementById('typingIndicator'),
+                chatMessages: document.getElementById('chatMessages'),
+                icebreakerSuggestions: document.getElementById('icebreaker-suggestions'),
+                groupChatRoom: document.getElementById('groupChatRoom'),
+                groupChatMessages: document.getElementById('groupChatMessages'),
+                groupMessageInput: document.getElementById('groupMessageInput'),
+                sendGroupMessageBtn: document.getElementById('sendGroupMessageBtn'),
+                groupTypingIndicator: document.getElementById('groupTypingIndicator'),
+                serverUrl: document.getElementById('serverUrl'),
+                venueId: document.getElementById('venueId'),
+                checkInBtn: document.getElementById('checkInBtn'),
+                joinVenueBtn: document.getElementById('joinVenueBtn'),
+                connections: document.getElementById('connections'),
+                chatRoom: document.getElementById('chatRoom'),
+                chatWith: document.getElementById('chatWith'),
+                imageInput: document.getElementById('imageInput'),
+                sendImageBtn: document.getElementById('sendImageBtn'),
+                groupImageInput: document.getElementById('groupImageInput'),
+                sendGroupImageBtn: document.getElementById('sendGroupImageBtn'),
+                recordBtn: document.getElementById('recordBtn'),
+                stopBtn: document.getElementById('stopBtn'),
+                audioPlayer: document.getElementById('audioPlayer')
+            };
+
+            // --- KÖMƏKÇİ FUNKSİYALAR ---
             function log(message, type = '') {
-                if (!logsEl) return;
                 const entry = document.createElement('div');
                 entry.className = `log-entry ${type}`;
                 entry.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-                logsEl.appendChild(entry);
-                logsEl.scrollTop = logsEl.scrollHeight;
+                elements.logs.appendChild(entry);
+                elements.logs.scrollTop = elements.logs.scrollHeight;
             }
 
+
             function renderCompass() {
-                compassResultsEl.innerHTML = '';
+                elements.compassResults.innerHTML = '';
                 if (compassUsers.length > 0) {
                     const header = document.createElement('h3');
                     header.textContent = `Bu məkanda ${compassUsers.length} nəfər tapıldı:`;
-                    compassResultsEl.appendChild(header);
+                    elements.compassResults.appendChild(header);
                     compassUsers.forEach(user => {
-                        if (!user || !user.userId) {
-                            console.error('Kompasda səhv istifadəçi obyekti:', user);
-                            return;
-                        }
-
+                        if (!user || !user.userId) return;
                         const userCard = document.createElement('div');
                         userCard.className = 'user-card';
-                        userCard.id = `user-${user.userId}`;
-                        userCard.innerHTML = `<span><strong>${user.name}</strong> (ID: ${user.userId})</span>`;
-
+                        userCard.innerHTML = `<span><img src="${user.avatarUrl || ''}" width="30" height="30" style="border-radius: 50%; margin-right: 10px; object-fit: cover; background-color: #eee;"><strong>${user.name || 'N/A'}</strong> (Score: ${user.compatibilityScore})</span>`;
                         const signalBtn = document.createElement('button');
                         signalBtn.className = 'signal-btn';
                         signalBtn.textContent = 'Siqnal Göndər';
-
                         signalBtn.onclick = () => {
-                            if (socket && socket.connected) {
-                                log(`SENT EVENT "send_signal" to user: ${user.userId}`, 'sent');
-                                socket.emit('send_signal', { receiverId: user.userId });
-                                signalBtn.disabled = true;
-                                signalBtn.textContent = 'Göndərildi';
-                            } else {
-                                log('XƏTA: Siqnal göndərmək üçün WebSocket bağlantısı aktiv deyil!', 'error');
-                                alert('WebSocket bağlantısı yoxdur. Zəhmət olmasa, yenidən qoşulun.');
-                            }
+                            socket.emit('send_signal', { receiverId: user.userId });
+                            signalBtn.disabled = true;
+                            signalBtn.textContent = 'Göndərildi';
                         };
                         userCard.appendChild(signalBtn);
-                        compassResultsEl.appendChild(userCard);
+                        elements.compassResults.appendChild(userCard);
                     });
                 } else {
-                    compassResultsEl.innerHTML = '<p>Bu məkanda başqa heç kim yoxdur.</p>';
+                    elements.compassResults.innerHTML = '<p>Filtrlərə uyğun heç kim tapılmadı və ya məkanda başqa kimsə yoxdur.</p>';
                 }
             }
 
-            async function fetchAndDisplayUsername(token) {
-                const serverUrl = document.getElementById('serverUrl').value;
-                if (!token || token.length < 20) {
-                    currentUserEl.textContent = 'Lyra Super Test Client';
-                    return;
-                }
-                try {
-                    const response = await fetch(`${serverUrl}/api/auth/me`, {
-                        method: 'GET',
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    if (!response.ok) {
-                        currentUserEl.textContent = 'Token Etibarsızdır';
-                        return;
-                    }
-                    const data = await response.json();
-                    if (data && data.profile && data.profile.name) {
-                        currentUser = data; // Bu əlavə edildi
-                        currentUserEl.textContent = `Current User: ${data.profile.name}`;
-                        log(`İstifadəçi təyin olundu: ${data.profile.name}`, 'received');
-                    }
-                } catch (error) {
-                    log(`İstifadəçi adını almaq mümkün olmadı: ${error.message}`, 'error');
-                    currentUserEl.textContent = 'Serverə Qoşulmaq Olmadı';
-                }
-            }
-
-            async function fetchChatHistory(connectionId) {
-                const token = authTokenEl.value;
-                const serverUrl = document.getElementById('serverUrl').value;
-                log(`API REQUEST: /api/chat/${connectionId}/messages sorğusu göndərilir...`, 'sent');
-                try {
-                    const response = await fetch(`${serverUrl}/api/chat/${connectionId}/messages`, {
-                        headers: { 'Authorization': `Bearer ${token}` }
-                    });
-                    return await response.json();
-                } catch (error) {
-                    log(`Chat history alınarkən xəta: ${error.message}`, 'error');
-                    return [];
-                }
-            }
-
-            function appendMessage(message) {
-                const chatMessagesEl = document.getElementById('chatMessages');
-                if (!chatMessagesEl) return;
-                
+            function appendMessage(msg, isHistory = false) {
                 const msgDiv = document.createElement('div');
                 msgDiv.className = 'message';
-
-                if (currentUser && message.senderId === currentUser.id) {
+                msgDiv.id = `msg-${msg.id}`;
+                let contentHtml = '';
+                if (msg.content) {
+                    contentHtml += `<div>${msg.content}</div>`;
+                }
+                if (msg.imageUrl) {
+                    contentHtml += `<img src="${msg.imageUrl}" class="chat-image" alt="Söhbət şəkli" onclick="window.open('${msg.imageUrl}', '_blank')">`;
+                }
+                if (msg.audioUrl) {
+                    contentHtml += `<audio controls src="${msg.audioUrl}"></audio>`;
+                }
+                if (currentUser && msg.senderId === currentUser.id) {
                     msgDiv.classList.add('sent');
+                    msgDiv.innerHTML = `<div>${msg.content}</div><span class="read-receipt" id="receipt-msg-${msg.id}">✓</span>`;
                 } else {
                     msgDiv.classList.add('received');
-                    if (message.sender?.profile?.name) {
-                        const senderName = document.createElement('div');
-                        senderName.className = 'sender';
-                        senderName.textContent = message.sender.profile.name;
-                        msgDiv.appendChild(senderName);
-                    }
+                    let senderHtml = msg.sender?.profile?.name ? `<div class="sender">${msg.sender.profile.name}</div>` : '';
+                    msgDiv.innerHTML = `${senderHtml}<div>${msg.content}</div>`;
                 }
 
-                const content = document.createElement('div');
-                content.textContent = message.content;
-                msgDiv.appendChild(content);
+                if (isHistory) {
+                    elements.chatMessages.prepend(msgDiv);
+                } else {
+                    elements.chatMessages.appendChild(msgDiv);
+                    elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
+                }
 
-                chatMessagesEl.appendChild(msgDiv);
-                chatMessagesEl.scrollTop = chatMessagesEl.scrollHeight;
+
+
+
             }
 
-            // Event Listeners
-            authTokenEl.addEventListener('input', (event) => {
-                fetchAndDisplayUsername(event.target.value);
-            });
+            // --- Qrup Mesajları ---
 
-            checkInBtn.addEventListener('click', async () => {
-                const serverUrl = document.getElementById('serverUrl').value;
-                const token = document.getElementById('authToken').value;
-                const latitude = parseFloat(document.getElementById('latitude').value);
-                const longitude = parseFloat(document.getElementById('longitude').value);
-                
-                if (!token || !latitude || !longitude) {
-                    log('XƏTA: Check-in üçün Token, Latitude və Longitude daxil edilməlidir!', 'error');
-                    return;
-                }
-                
-                log('API REQUEST: /api/location/check-in sorğusu göndərilir...', 'sent');
-                try {
-                    const response = await fetch(`${serverUrl}/api/location/check-in`, {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
-                        body: JSON.stringify({ latitude, longitude })
-                    });
-                    const data = await response.json();
-                    if (!response.ok) {
-                        throw new Error(data.message || 'Check-in zamanı xəta baş verdi.');
-                    }
-                    log(`API RESPONSE: ${JSON.stringify(data)}`, 'received');
-                    document.getElementById('venueId').value = data.data.venueId;
-                } catch (error) {
-                    log(`API XƏTASI: ${error.message}`, 'error');
-                }
-            });
+            function appendGroupMessage(msg) {
+                const msgContainer = document.createElement('div');
+                msgContainer.className = 'message-container';
 
-            connectBtn.addEventListener('click', () => {
-                const serverUrl = document.getElementById('serverUrl').value;
-                const token = document.getElementById('authToken').value;
-                if (!token) {
-                    log('XƏTA: Zəhmət olmasa, token daxil edin!', 'error');
-                    return;
+                const msgDiv = document.createElement('div');
+                msgDiv.className = 'group-message';
+                msgDiv.id = `group-msg-${msg.id}`;
+
+                // DƏYİŞİKLİK: Sistem xəbərdarlığını yoxlayırıq
+                if (msg.isSystemWarning) {
+                    msgDiv.style.backgroundColor = '#fff0f0'; // Açıq qırmızı fon
+                    msgDiv.style.border = '1px solid #ff3b30';
+                    msgDiv.innerHTML = `<div class="sender" style="color: #ff3b30;">⚠️ ${msg.sender.profile.name}</div><div>${msg.content}</div>`;
+                    msgContainer.appendChild(msgDiv);
+                    elements.groupChatMessages.appendChild(msgContainer);
+                    elements.groupChatMessages.scrollTop = elements.groupChatMessages.scrollHeight;
+                    return; // Funksiyanı burada bitiririk, reaksiya əlavə etmirik.
                 }
-                
-                log(`Connecting to ${serverUrl}...`, 'sent');
-                socket = io(serverUrl, { auth: { token: token } });
+
+                // Normal mesajlar üçün köhnə məntiq davam edir
+                let senderName = msg.sender?.profile?.name || 'Bilinməyən';
+                if (currentUser && msg.senderId === currentUser.id) {
+                    senderName = 'Siz';
+                    msgContainer.classList.add('sent');
+                    msgDiv.classList.add('group-message-own');
+                }
+
+                let contentHtml = `<div class="sender">${senderName}</div>`;
+                if (msg.content) contentHtml += `<div>${msg.content}</div>`;
+                if (msg.imageUrl) contentHtml += `<img src="${msg.imageUrl}" style="max-width: 200px; border-radius: 12px;">`;
+                msgDiv.innerHTML = contentHtml;
+
+                // Reaksiya SEÇİMLƏRİNİ yaradırıq (gizli)
+                const reactionsDiv = document.createElement('div');
+                reactionsDiv.className = 'reactions';
+                ['👍', '❤️', '😂', '🔥'].forEach(emoji => {
+                    const emojiSpan = document.createElement('span');
+                    emojiSpan.className = 'reaction-emoji';
+                    emojiSpan.textContent = emoji;
+                    emojiSpan.onclick = () => {
+                        socket.emit('send_group_reaction', { venueId: elements.venueId.value, messageId: msg.id, reactionEmoji: emoji });
+                    };
+                    reactionsDiv.appendChild(emojiSpan);
+                });
+                msgDiv.appendChild(reactionsDiv);
+
+                // Reaksiyaları GÖSTƏRƏN sahəni yaradırıq
+                const reactionDisplayDiv = document.createElement('div');
+                reactionDisplayDiv.className = 'reaction-display';
+                reactionDisplayDiv.id = `reaction-display-${msg.id}`;
+
+                if (msg.reactions && msg.reactions.length > 0) {
+                    // ... (reaksiya göstərmə məntiqi eyni qalır)
+                } else {
+                    reactionDisplayDiv.style.display = 'none';
+                }
+
+                msgContainer.appendChild(msgDiv);
+                msgContainer.appendChild(reactionDisplayDiv);
+                elements.groupChatMessages.appendChild(msgContainer);
+                elements.groupChatMessages.scrollTop = elements.groupChatMessages.scrollHeight;
+            } // --- Qrup Yazma İndikatoru ---
+        
+            function updateGroupTypingIndicator() {
+                const userNames = Object.values(groupTypingUsers);
+                if (userNames.length === 0) {
+                    elements.groupTypingIndicator.textContent = '';
+                } else if (userNames.length === 1) {
+                    elements.groupTypingIndicator.textContent = `${userNames[0]} yazır...`;
+                } else if (userNames.length === 2) {
+                    elements.groupTypingIndicator.textContent = `${userNames.join(' və ')} yazır...`;
+                } else {
+                    elements.groupTypingIndicator.textContent = 'Bir neçə nəfər yazır...';
+                }
+            }
+
+            window.markMessagesAsRead = () => {
+                if (socket && currentConnection) {
+                    log('SENT EVENT "mark_as_read"', 'sent');
+                    socket.emit('mark_as_read', { connectionId: currentConnection.connection.id });
+                }
+            };
+
+            // --- EVENT LİSTENERLERİ ---
+            elements.connectBtn.addEventListener('click', () => {
+                const token = elements.authToken.value;
+                if (!token) return log('XƏTA: Token daxil edin!', 'error');
+
+                socket = io(elements.serverUrl.value, { auth: { token } });
 
                 socket.on('connect', () => {
-                    console.log("✅ Socket qoşuldu:", socket.id);
-                    statusEl.textContent = 'Connected';
-                    statusEl.className = 'status connected';
-                    connectBtn.style.display = 'none';
-                    disconnectBtn.style.display = 'block';
-                    actionsEl.style.display = 'block';
+                    elements.status.textContent = 'Connected';
+                    elements.status.className = 'status connected';
+                    elements.connectBtn.style.display = 'none';
+                    elements.disconnectBtn.style.display = 'block';
+                    elements.actions.style.display = 'block';
                     log('Serverə uğurla qoşuldu!', 'received');
-
-                    fetchAndDisplayUsername(token);
-
-                    connectionsEl.innerHTML = '<p>Hələ heç bir bağlantı yoxdur...</p>';
-                    incomingSignalsEl.innerHTML = '<p>Hələ heç bir siqnal yoxdur...</p>';
-                    compassUsers = [];
-                    renderCompass();
                 });
 
                 socket.on('disconnect', () => {
-                    statusEl.textContent = 'Disconnected';
-                    statusEl.className = 'status disconnected';
-                    connectBtn.style.display = 'block';
-                    disconnectBtn.style.display = 'none';
-                    actionsEl.style.display = 'none';
+                    elements.status.textContent = 'Disconnected';
+                    elements.status.className = 'status disconnected';
+                    elements.connectBtn.style.display = 'block';
+                    elements.disconnectBtn.style.display = 'none';
+                    elements.actions.style.display = 'none';
                     log('Serverdən ayrıldı.', 'error');
-                    currentUserEl.textContent = 'Lyra Super Test Client (Fixed)';
                 });
 
-                socket.on('connect_error', (err) => {
-                    log(`Qoşulma xətası: ${err.message}`, 'error');
+                socket.on('error', (data) => log(`ERROR: ${JSON.stringify(data)}`, 'error'));
+
+                socket.on('receive_venue_group_message', (message) => {
+                    log(`GROUP_MESSAGE from ${message.sender.profile.name}: ${message.content}`, 'received');
+                    appendGroupMessage(message);
                 });
 
                 socket.on('compass_update', (users) => {
-                    log(`RECEIVED EVENT "compass_update" with ${users.length} users.`, 'received');
                     compassUsers = users;
                     renderCompass();
                 });
 
                 socket.on('user_joined', (newUser) => {
-                    log(`RECEIVED EVENT "user_joined": ${newUser.name} joined.`, 'received');
                     if (!compassUsers.some(u => u.userId === newUser.userId)) {
                         compassUsers.push(newUser);
+                        renderCompass();
                     }
-                    renderCompass();
                 });
 
-                socket.on('user_left', (data) => {
-                    log(`RECEIVED EVENT "user_left": User ${data.userId} left.`, 'received');
-                    compassUsers = compassUsers.filter(u => u.userId !== data.userId);
-                    renderCompass();
-                });
+                socket.on('new_connection', async (data) => {
+                    currentConnection = data;
+                    elements.chatWith.textContent = `${data.partner.name} ilə söhbət`;
+                    elements.chatRoom.style.display = 'block';
+                    elements.chatMessages.innerHTML = '';
+                    elements.icebreakerSuggestions.innerHTML = '';
 
-                socket.on('signal_received', (data) => {
-                    log(`RECEIVED EVENT "signal_received": ${JSON.stringify(data)}`, 'received');
-                    if (incomingSignalsEl.querySelector('p')) {
-                        incomingSignalsEl.innerHTML = '';
-                    }
-                    const signalCard = document.createElement('div');
-                    signalCard.className = 'signal-card';
-                    signalCard.innerHTML = `<p><strong>${data.from.name}</strong> sizə siqnal göndərdi!</p>`;
-                    incomingSignalsEl.appendChild(signalCard);
-                });
+                    try {
+                        const history = await fetch(`${elements.serverUrl.value}/api/chat/${data.connection.id}/messages`, {
+                            headers: { 'Authorization': `Bearer ${token}` }
+                        }).then(res => res.json());
 
-                socket.on('new_connection', (data) => {
-                    log(`RECEIVED EVENT "new_connection": ${JSON.stringify(data)}`, 'received');
-                    if (connectionsEl.querySelector('p')) {
-                        connectionsEl.innerHTML = '';
-                    }
-                    const connectionCard = document.createElement('div');
-                    connectionCard.className = 'connection-card';
-                    connectionCard.innerHTML = `
-                        <h3>Təbriklər!</h3>
-                        <p><strong>${data.partner.name}</strong> ilə yeni bir bağlantı qurdunuz! (Click to chat)</p>
-                        <button style="margin-top: 10px; width: auto; padding: 8px 16px;">Chat Aç</button>
-                    `;
-                    
-                    // Event listener əlavə edirik
-                    connectionCard.addEventListener('click', async () => {
-                        log(`Connection card clicked - Opening chat with ${data.partner.name}`, 'sent');
-                        
-                        currentConnection = data;
-                        document.getElementById('chatWith').textContent = `${data.partner.name} ilə söhbət`;
-                        document.getElementById('chatRoom').style.display = 'block';
-                        
-                        // Chat history yükləyirik
-                        const history = await fetchChatHistory(data.connection.id);
-                        const chatMessagesEl = document.getElementById('chatMessages');
-                        chatMessagesEl.innerHTML = '';
-                        
                         if (history && history.length > 0) {
-                            history.forEach(msg => appendMessage(msg));
+                            history.forEach(msg => appendMessage(msg, true));
                         } else {
-                            chatMessagesEl.innerHTML = '<p style="text-align: center; color: #666; padding: 20px;">Hələ heç bir mesaj yoxdur. İlk mesajı siz yazın!</p>';
+                            const questions = await fetch(`${elements.serverUrl.value}/api/chat/icebreakers`, {
+                                headers: { 'Authorization': `Bearer ${token}` }
+                            }).then(res => res.json());
+
+                            if (questions && questions.length > 0) {
+                                elements.icebreakerSuggestions.innerHTML = '<h5>Söhbətə başla:</h5>';
+                                questions.forEach(q => {
+                                    const btn = document.createElement('button');
+                                    btn.className = 'suggestion-btn';
+                                    btn.innerText = q.text;
+                                    btn.onclick = () => {
+                                        elements.messageInput.value = q.text;
+                                        elements.icebreakerSuggestions.style.display = 'none';
+                                        elements.messageInput.focus();
+                                    };
+                                    elements.icebreakerSuggestions.appendChild(btn);
+                                });
+                            }
                         }
-                        
-                        log(`Chat açıldı: ${data.partner.name} (Connection ID: ${data.connection.id})`, 'received');
-                        
-                        // Chat inputuna fokus veririk
-                        document.getElementById('messageInput').focus();
-                        
-                        // Chat room-a scroll edirik
-                        document.getElementById('chatRoom').scrollIntoView({ behavior: 'smooth' });
-                    });
-                    
-                    connectionsEl.appendChild(connectionCard);
+                    } catch (error) {
+                        log(`API XƏTASI: ${error.message}`, 'error');
+                    }
+                });
+
+                socket.on('user_is_group_typing', ({ userId, userName }) => {
+                    groupTypingUsers[userId] = userName;
+                    updateGroupTypingIndicator();
+                });
+
+                socket.on('user_stopped_group_typing', ({ userId }) => {
+                    delete groupTypingUsers[userId];
+                    updateGroupTypingIndicator();
                 });
 
                 socket.on('receive_message', (message) => {
-                    log(`RECEIVED EVENT "receive_message": ${JSON.stringify(message)}`, 'received');
-                    if (currentConnection && currentConnection.connection && message.connectionId === currentConnection.connection.id) {
+                    if (currentConnection && message.connectionId === currentConnection.connection.id) {
                         appendMessage(message);
+                        elements.typingIndicator.style.opacity = 0;
                     }
                 });
 
-                socket.on('error', (data) => {
-                    log(`RECEIVED EVENT "error": ${JSON.stringify(data)}`, 'error');
+                socket.on('user_is_typing', ({ connectionId }) => {
+                    if (currentConnection && connectionId === currentConnection.connection.id) {
+                        elements.typingIndicator.innerText = `${currentConnection.partner.name} yazır...`;
+                        elements.typingIndicator.style.opacity = 1;
+                    }
                 });
-            });
 
-            disconnectBtn.addEventListener('click', () => {
-                if (socket) socket.disconnect();
-            });
-
-            document.getElementById('joinVenueBtn').addEventListener('click', () => {
-                const venueId = document.getElementById('venueId').value;
-                if (socket && venueId) {
-                    log(`SENT EVENT "join_venue" with data: ${venueId}`, 'sent');
-                    compassResultsEl.innerHTML = '<p>Kompas yenilənir...</p>';
-                    socket.emit('join_venue', Number(venueId));
-                } else {
-                    log('XƏTA: Zəhmət olmasa, Venue ID daxil edin!', 'error');
-                }
-            });
-
-            // Mesaj göndərmə event listener - BU DÜZƏLDİLDİ
-            sendMessageBtn.addEventListener('click', () => {
-                const content = messageInputEl.value.trim();
-                
-                console.log('=== MESAJ GÖNDƏRMƏ DEBUG ===');
-                console.log('Content:', content);
-                console.log('CurrentConnection:', currentConnection);
-                console.log('Socket connected:', socket ? socket.connected : 'no socket');
-                
-                if (!currentConnection || !currentConnection.connection) {
-                    log('XƏTA: Əvvəlcə bir bağlantı seçin!', 'error');
-                    alert('Xəta: Əvvəlcə yuxarıdakı bağlantı kartına klik edin!');
-                    return;
-                }
-                
-                if (!content) {
-                    log('XƏTA: Mesaj boş ola bilməz!', 'error');
-                    return;
-                }
-                
-                if (!socket || !socket.connected) {
-                    log('XƏTA: WebSocket bağlantısı yoxdur!', 'error');
-                    return;
-                }
-                
-                log(`SENT EVENT "send_message" to connection: ${currentConnection.connection.id}`, 'sent');
-                socket.emit('send_message', {
-                    connectionId: currentConnection.connection.id,
-                    content: content
+                socket.on('user_stopped_typing', ({ connectionId }) => {
+                    if (currentConnection && connectionId === currentConnection.connection.id) {
+                        elements.typingIndicator.style.opacity = 0;
+                    }
                 });
-                
-                messageInputEl.value = '';
+
+                socket.on('messages_were_read', ({ connectionId }) => {
+                    if (currentConnection && connectionId === currentConnection.connection.id) {
+                        log('Partner mesajları oxudu!', 'received');
+                        document.querySelectorAll('.read-receipt').forEach(el => {
+                            el.innerText = '✓✓';
+                            el.style.color = '#4ade80';
+                        });
+                    }
+                });
+                socket.on('update_group_reactions', ({ messageId, reactions }) => {
+                    log(`RECEIVED reaction update for msg ${messageId}`, 'received');
+                    const displayDiv = document.getElementById(`reaction-display-${messageId}`);
+                    if (displayDiv) {
+                        const reactionCounts = reactions.reduce((acc, r) => { acc[r.emoji] = (acc[r.emoji] || 0) + 1; return acc; }, {});
+                        const reactionText = Object.entries(reactionCounts).map(([e, c]) => `${e} ${c}`).join(' ');
+                        displayDiv.textContent = reactionText;
+                        displayDiv.style.display = reactionText ? 'inline-block' : 'none';
+                    }
+                });
+
+                socket.on('moderation_warning', (data) => {
+                    log(`MODERATION WARNING: ${data.message}`, 'error');
+                    // İstifadəçiyə dərhal bildiriş göstəririk
+                    alert(`XƏBƏRDARLIQ: ${data.message}`);
+                });
+
             });
 
-            // Enter ilə mesaj göndərmə
-            messageInputEl.addEventListener('keypress', (e) => {
+            elements.disconnectBtn.addEventListener('click', () => {
+                if (socket) {
+                    socket.disconnect();
+                }
+            });
+
+            elements.checkInBtn.addEventListener('click', async () => {
+                const token = elements.authToken.value;
+                try {
+                    const response = await fetch(`${elements.serverUrl.value}/api/location/check-in`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${token}` },
+                        body: JSON.stringify({
+                            latitude: parseFloat(elements.latitude.value),
+                            longitude: parseFloat(elements.longitude.value)
+                        })
+                    });
+                    const data = await response.json();
+                    if (!response.ok) throw new Error(data.message);
+                    if (data.data?.venueId) elements.venueId.value = data.data.venueId;
+                    log('Check-in uğurla tamamlandı!', 'received');
+                } catch (error) {
+                    log(`API XƏTASI: ${error.message}`, 'error');
+                }
+            });
+
+            elements.joinVenueBtn.addEventListener('click', async () => {
+                const venueId = elements.venueId.value;
+                if (!socket || !venueId) return log('XƏTA: Venue ID daxil edin!', 'error');
+
+                elements.groupChatRoom.style.display = 'block';
+                elements.groupChatMessages.innerHTML = '';
+
+                try {
+                    const history = await fetch(`${elements.serverUrl.value}/api/chat/venue/${venueId}/messages`, {
+                        headers: { 'Authorization': `Bearer ${elements.authToken.value}` }
+                    }).then(res => res.json());
+                    if (history) history.forEach(appendGroupMessage);
+                } catch (error) {
+                    log(`Qrup mesaj tarixçəsi yüklənə bilmədi: ${error.message}`, 'error');
+                }
+
+                socket.emit('join_venue', Number(venueId), {});
+            });
+
+            elements.sendMessageBtn.addEventListener('click', () => {
+                const content = elements.messageInput.value.trim();
+                if (!currentConnection || !content) return;
+                socket.emit('send_message', { connectionId: currentConnection.connection.id, content: content });
+                elements.messageInput.value = '';
+                if (typingTimeout) {
+                    clearTimeout(typingTimeout);
+                    socket.emit('stop_typing', { connectionId: currentConnection.connection.id });
+                    typingTimeout = null;
+                }
+            });
+
+            elements.sendGroupMessageBtn.addEventListener('click', () => {
+                const content = elements.groupMessageInput.value.trim();
+                const venueId = elements.venueId.value;
+                if (!socket || !venueId || !content) return;
+                socket.emit('send_venue_group_message', { venueId: Number(venueId), content: content });
+                elements.groupMessageInput.value = '';
+                if (groupTypingTimeout) {
+                    clearTimeout(groupTypingTimeout);
+                    socket.emit('stop_group_typing', { venueId: Number(venueId) });
+                    groupTypingTimeout = null;
+                }
+            });
+
+            elements.messageInput.addEventListener('input', () => {
+                if (socket && currentConnection) {
+                    if (!typingTimeout) {
+                        socket.emit('start_typing', { connectionId: currentConnection.connection.id });
+                    }
+                    clearTimeout(typingTimeout);
+                    typingTimeout = setTimeout(() => {
+                        socket.emit('stop_typing', { connectionId: currentConnection.connection.id });
+                        typingTimeout = null;
+                    }, 2000);
+                }
+            });
+
+            elements.messageInput.addEventListener('keypress', (e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                     e.preventDefault();
-                    sendMessageBtn.click();
+                    elements.sendMessageBtn.click();
                 }
+            });
+
+            elements.groupMessageInput.addEventListener('input', () => {
+                const venueId = elements.venueId.value;
+                if (socket && venueId) {
+                    if (!groupTypingTimeout) {
+                        socket.emit('start_group_typing', { venueId: Number(venueId) });
+                    }
+                    clearTimeout(groupTypingTimeout);
+                    groupTypingTimeout = setTimeout(() => {
+                        socket.emit('stop_group_typing', { venueId: Number(venueId) });
+                        groupTypingTimeout = null;
+                    }, 2000);
+                }
+            });
+
+            elements.groupMessageInput.addEventListener('keypress', (e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    elements.sendGroupMessageBtn.click();
+                }
+            });
+
+            elements.sendImageBtn.addEventListener('click', async () => {
+                const file = imageInput.files[0];
+                if (!file || !currentConnection) {
+                    log('Zəhmət olmasa, şəkil seçin və bir söhbətdə olun.', 'error');
+                    return;
+                }
+
+                sendImageBtn.disabled = true; // Təkrarlanmanın qarşısını almaq üçün düyməni kilidləyirik
+                log('Şəkil Cloudinary-ə yüklənir...', 'sent');
+                const formData = new FormData();
+                formData.append('chatImage', file);
+
+                try {
+                    const response = await fetch(`${elements.serverUrl.value}/api/chat/upload-image`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${elements.authToken.value}` },
+                        body: formData
+                    });
+                    const result = await response.json();
+
+                    if (!response.ok) throw new Error(result.message);
+
+                    log('Şəkil yükləndi. Mesaj göndərilir...', 'sent');
+                    socket.emit('send_message', {
+                        connectionId: currentConnection.connection.id,
+                        imageUrl: result.url
+                    });
+
+                    imageInput.value = ''; // Inputu təmizləyirik
+                } catch (error) {
+                    log(`Şəkil göndərilərkən xəta: ${error.message}`, 'error');
+                } finally {
+                    sendImageBtn.disabled = false; // Əməliyyat bitdikdən sonra düyməni aktiv edirik
+                }
+            });
+
+            elements.sendGroupImageBtn.addEventListener('click', async () => {
+                const file = elements.groupImageInput.files[0];
+                const venueId = elements.venueId.value;
+                if (!file || !venueId) {
+                    return log('Zəhmət olmasa, şəkil seçin və bir məkanda olun.', 'error');
+                }
+
+                elements.sendGroupImageBtn.disabled = true;
+                log('Qrup şəkli Cloudinary-ə yüklənir...', 'sent');
+                const formData = new FormData();
+                formData.append('groupChatImage', file);
+
+                try {
+                    const response = await fetch(`${elements.serverUrl.value}/api/chat/group/upload-image`, {
+                        method: 'POST',
+                        headers: { 'Authorization': `Bearer ${elements.authToken.value}` },
+                        body: formData
+                    });
+                    const result = await response.json();
+                    if (!response.ok) throw new Error(result.message);
+
+                    log('Şəkil yükləndi. Qrup mesajı göndərilir...', 'sent');
+                    socket.emit('send_venue_group_message', {
+                        venueId: Number(venueId),
+                        imageUrl: result.url
+                    });
+                    elements.groupImageInput.value = '';
+                } catch (error) {
+                    log(`Qrup şəkli göndərilərkən xəta: ${error.message}`, 'error');
+                } finally {
+                    elements.sendGroupImageBtn.disabled = false;
+                }
+            });
+
+            elements.recordBtn.addEventListener('click', async () => {
+                try {
+                    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+                    mediaRecorder = new MediaRecorder(stream);
+                    mediaRecorder.start();
+                    audioChunks = [];
+                    mediaRecorder.addEventListener("dataavailable", event => {
+                        audioChunks.push(event.data);
+                    });
+
+                    elements.recordBtn.style.display = 'none';
+                    elements.stopBtn.style.display = 'block';
+                    log('Səs yazılır...', 'received');
+                } catch (err) {
+                    log('Mikrofona icazə verilmədi və ya xəta baş verdi.', 'error');
+                }
+            });
+
+            elements.stopBtn.addEventListener('click', () => {
+                mediaRecorder.addEventListener("stop", async () => {
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/mp3' }); // Formatı dəyişə bilərsiniz
+                    const audioUrl = URL.createObjectURL(audioBlob);
+                    elements.audioPlayer.src = audioUrl;
+                    elements.audioPlayer.style.display = 'block';
+
+                    // Faylı göndərməyə başla
+                    const formData = new FormData();
+                    formData.append('chatAudio', audioBlob, 'voice-message.mp3');
+
+                    try {
+                        const response = await fetch(`${elements.serverUrl.value}/api/chat/upload-audio`, {
+                            method: 'POST',
+                            headers: { 'Authorization': `Bearer ${elements.authToken.value}` },
+                            body: formData
+                        });
+                        const result = await response.json();
+                        if (!response.ok) throw new Error(result.message);
+
+                        socket.emit('send_message', {
+                            connectionId: currentConnection.connection.id,
+                            audioUrl: result.url
+                        });
+                    } catch (error) {
+                        log(`Səsli mesaj göndərilərkən xəta: ${error.message}`, 'error');
+                    }
+                });
+                mediaRecorder.stop();
+                elements.recordBtn.style.display = 'block';
+                elements.stopBtn.style.display = 'none';
+                log('Səs yazma dayandırıldı, fayl göndərilir...', 'sent');
             });
         });
     </script>
 </body>
+
 </html>
