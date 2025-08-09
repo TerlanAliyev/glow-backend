@@ -21,8 +21,16 @@ router.post(
 // POST /api/location/seed - Test üçün databazaya məkanları əlavə edir
 router.post('/seed', seedVenues);
 router.patch('/incognito', authenticateToken, setIncognito);
-router.post('/check-in/finalize', authenticateToken, finalizeCheckIn);
-router.get('/venues/:id/stats', authenticateToken, getVenueStats);
+router.post(
+    '/check-in/finalize',
+    authenticateToken,
+    [
+        body('venueId').isInt().withMessage('Məkan ID-si məcburidir.'),
+        body('latitude').isFloat().withMessage('Enlik (latitude) məcburidir və düzgün formatda olmalıdır.'),
+        body('longitude').isFloat().withMessage('Uzunluq (longitude) məcburidir və düzgün formatda olmalıdır.'),
+    ],
+    finalizeCheckIn
+);router.get('/venues/:id/stats', authenticateToken, getVenueStats);
 router.get('/venues/:id/live-stats', authenticateToken, isPremium, getLiveVenueStats);
 
 module.exports = router;

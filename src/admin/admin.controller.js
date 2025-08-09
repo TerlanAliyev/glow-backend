@@ -155,8 +155,15 @@ const updateVenue = asyncHandler(async (req, res) => {
 
 const deleteVenue = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    await contentService.deleteVenue(parseInt(id));
-    res.status(204).send(); // No Content
+
+    // --- DEBUG üçün əlavə edildi ---
+    console.log(`[Controller] Gələn ID: "${id}", Tipi: ${typeof id}`);
+    const parsedId = parseInt(id, 10);
+    console.log(`[Controller] Çevrilmiş ID: ${parsedId}, Tipi: ${typeof parsedId}`);
+    // --- DEBUG sonu ---
+
+    await contentService.deleteVenue(parsedId); // Çevrilmiş ID-ni göndəririk
+    res.status(204).send();
 });
 const getVenueActivity = asyncHandler(async (req, res) => {
     const { id } = req.params;
@@ -318,13 +325,32 @@ const getBadges = asyncHandler(async (req, res) => {
 });
 
 const createBadge = asyncHandler(async (req, res) => {
-    const newBadge = await gamificationService.createBadge(req.body);
+    const data = req.body;
+    
+    // Əgər fayl yüklənibsə, onun Cloudinary URL-ini dataya əlavə edirik
+    if (req.file) {
+        data.iconUrl = req.file.path;
+    }
+
+    // Şəkilin məcburi olduğunu yoxlayırıq
+    if (!data.iconUrl) {
+        return res.status(400).json({ message: 'Nişan üçün ikon şəkli məcburidir.' });
+    }
+
+    const newBadge = await gamificationService.createBadge(data);
     res.status(201).json(newBadge);
 });
 
 const updateBadge = asyncHandler(async (req, res) => {
     const { id } = req.params;
-    const updatedBadge = await gamificationService.updateBadge(id, req.body);
+    const data = req.body;
+
+    // Əgər yeniləmə zamanı yeni fayl yüklənibsə, URL-i dəyişirik
+    if (req.file) {
+        data.iconUrl = req.file.path;
+    }
+
+    const updatedBadge = await gamificationService.updateBadge(id, data);
     res.status(200).json(updatedBadge);
 });
 
@@ -333,6 +359,18 @@ const deleteBadge = asyncHandler(async (req, res) => {
     await gamificationService.deleteBadge(id);
     res.status(204).send();
 });
+
+// === GAMIFICATION (BADGE RULES) MANAGEMENT ===
+const getBadgeRules = asyncHandler(async (req, res) => {
+    const rules = await gamificationService.getAllBadgeRules(); // Bu funksiyanı servisə əlavə edəcəyik
+    res.status(200).json(rules);
+});
+
+const createBadgeRule = asyncHandler(async (req, res) => {
+    const newRule = await gamificationService.createBadgeRule(req.body); // Bu funksiyanı da
+    res.status(201).json(newRule);
+});
+
 
 module.exports = {
      getUsers, updateUserRole, updateUserStatus, getReports, updateReportStatus,
@@ -349,5 +387,6 @@ module.exports = {
     getIcebreakers, createIcebreaker, updateIcebreaker, deleteIcebreaker,
     updateUserSubscription,updateUserContact,triggerVenueStatCalculation,
     getVerificationRequests, updateVerificationStatus,
-    getBadges, createBadge, updateBadge, deleteBadge
+    getBadges, createBadge, updateBadge, deleteBadge,
+    getBadgeRules, createBadgeRule,
 };

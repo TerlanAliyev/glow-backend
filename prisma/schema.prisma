@@ -23,9 +23,10 @@ enum PersonalityType {
   EXTROVERT
   AMBIVERT
 }
-enum SubscriptionType {
+enum SubscriptionPlan {
   FREE
-  PREMIUM
+  PREMIUM_MONTHLY
+  PREMIUM_YEARLY
 }
 enum VenueCategory {
   GENERAL
@@ -49,6 +50,7 @@ enum VerificationStatus {
   APPROVED
   REJECTED
 }
+
 
 model User {
   id              String          @id @default(uuid())
@@ -76,9 +78,12 @@ model User {
   role   Role @relation(fields: [roleId], references: [id])
   roleId Int  @default(2) 
   isActive Boolean @default(true)
-  subscription SubscriptionType   @default(FREE) // YENİ SAHƏ
-  premiumExpiresAt DateTime?  
-  adminLogs   AdminLog[]
+
+  subscription         SubscriptionPlan @default(FREE)
+  subscriptionExpiresAt DateTime?
+  premiumExpiresAt      DateTime?
+  
+  auditLogs   AuditLog[] // YENİ ƏLAQƏ
   sentBroadcasts BroadcastNotification[]
   passwordResetTokens PasswordResetToken[] // YENİ ƏLAVƏ
   viewsMade     ProfileView[] @relation("views_made")
@@ -89,8 +94,7 @@ model User {
   refreshTokens RefreshToken[]
   groupMessageReactions GroupMessageReaction[] // Bu sətri əlavə edin
   checkInHistory CheckInHistory[]
-  badges             UserBadge[] // YENİ ƏLAQƏ
-
+  badges UserBadge[] // YENİ ƏLAQƏ
 }
 
 model Profile {
@@ -269,15 +273,13 @@ model Role {
   users User[]
 }
 
-model AdminLog {
-  id        Int      @id @default(autoincrement())
-  action    String   // Edilən hərəkət (məs: "USER_BANNED", "VENUE_CREATED")
-  details   Json?    // Hərəkət haqqında əlavə məlumat (məs: { oldStatus: true, newStatus: false })
-  createdAt DateTime @default(now())
-
-  // Əlaqələr
-  admin     User     @relation(fields: [adminId], references: [id])
-  adminId   String   // Hərəkəti edən admin
+model AuditLog {
+  id          Int      @id @default(autoincrement())
+  actor       User?    @relation(fields: [actorId], references: [id], onDelete: SetNull) // Hərəkəti edən şəxs (admin və ya istifadəçi)
+  actorId     String?
+  action      String   // Məs: 'USER_ACTIVATED_INCOGNITO'
+  details     Json?    // Əlavə məlumatlar
+  createdAt   DateTime @default(now())
 }
 
 model BroadcastNotification {
@@ -409,6 +411,9 @@ model Badge {
   name        String
   description String
   iconUrl     String
+  rule        BadgeRule? @relation(fields: [ruleId], references: [id])
+  ruleId      Int?       // Hansı qaydaya bağlıdır?
+  checkValue  Int?       // Hədəf rəqəm neçə olmalıdır?
   users       UserBadge[]
   createdAt   DateTime   @default(now())
 }
@@ -421,4 +426,13 @@ model UserBadge {
   createdAt DateTime @default(now())
 
   @@id([userId, badgeId]) // Birləşmiş unikal açar
+}
+
+model BadgeRule {
+  id            Int      @id @default(autoincrement())
+  code          String   @unique // Məs: 'CONNECTION_COUNT', 'DISTINCT_CHECKIN_COUNT'
+  name          String   // Məs: 'Bağlantı Sayı', 'Fərqli Məkan Sayı'
+  description   String   // Admin üçün izah
+  triggerAction String   // Hansı hadisənin bu yoxlamanı başladacağını göstərən sadə mətn (məs: 'NEW_MATCH')
+  badges        Badge[]
 }

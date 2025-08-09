@@ -1,6 +1,19 @@
 const prisma = require('../../config/prisma');
-const redis = require('../../config/redis'); 
+const redis = require('../../config/redis'); // <-- BU SƏTRİ ƏLAVƏ EDİN
 
+const invalidateVenuesCache = async () => {
+    try {
+        // "admin:venues:" ilə başlayan bütün açarları tapırıq
+        const keys = await redis.keys('admin:venues:*');
+        if (keys.length > 0) {
+            // Tapılan bütün açarları silirik
+            await redis.del(keys);
+            console.log('[CACHE INVALIDATION] 🗑️ Məkanlar siyahısının keşi təmizləndi.');
+        }
+    } catch (error) {
+        console.error("Redis-dən keş təmizlənərkən xəta baş verdi:", error);
+    }
+};
 
 const getVenues = async (queryParams) => {
     // Controller-dən gələn queryParams-ı qəbul edirik
@@ -35,6 +48,8 @@ const getVenues = async (queryParams) => {
 const createVenue = async (data) => {
     // Artıq 'category' sahəsini də qəbul edirik
     const { name, address, latitude, longitude, description, category } = data;
+        await invalidateVenuesCache(); // <-- ƏLAVƏ EDİLDİ
+
     return prisma.venue.create({
         data: { name, address, latitude, longitude, description, category }
     });
@@ -52,6 +67,7 @@ const updateVenue = async (id, data) => {
     if (longitude !== undefined) dataToUpdate.longitude = parseFloat(longitude);
     if (description !== undefined) dataToUpdate.description = description;
     if (category !== undefined) dataToUpdate.category = category;
+    await invalidateVenuesCache(); // <-- ƏLAVƏ EDİLDİ
 
     return prisma.venue.update({
         where: { id: id },
@@ -59,7 +75,47 @@ const updateVenue = async (id, data) => {
     });
 };
 
-const deleteVenue = async (id) => prisma.venue.delete({ where: { id } });
+
+const deleteVenue = async (id) => {
+    const venueId = Number(id);
+
+    // 1. Silməzdən əvvəl məkanın mövcudluğunu yoxlayırıq.
+    const venueExists = await prisma.venue.findUnique({
+        where: { id: venueId },
+    });
+
+    if (!venueExists) {
+        const error = new Error(`Bu ID (${venueId}) ilə məkan tapılmadı.`);
+        error.statusCode = 404; // Not Found
+        throw error;
+    }
+
+    // 2. Bütün asılılıqları və məkanın özünü tək bir əməliyyatda silirik.
+    return prisma.$transaction(async (tx) => {
+        // Məkana aid olan bütün qrup mesajlarını silirik
+        await tx.venueGroupMessage.deleteMany({
+            where: { venueId: venueId }
+        });
+
+        // Məkandakı bütün aktiv sessiyaları silirik
+        await tx.activeSession.deleteMany({
+            where: { venueId: venueId }
+        });
+
+        // Məkana aid olan bütün check-in tarixçəsini silirik
+        await tx.checkInHistory.deleteMany({
+            where: { venueId: venueId }
+        });
+        
+        // Bütün asılılıqlar silindikdən sonra məkanın özünü silirik
+        const deletedVenue = await tx.venue.delete({
+            where: { id: venueId }
+        });
+    await invalidateVenuesCache(); // <-- ƏLAVƏ EDİLDİ
+
+        return deletedVenue;
+    });
+};
 
 const getVenueActivity = async (venueId) => {
     const twentyFourHoursAgo = new Date(new Date() - 24 * 60 * 60 * 1000);
@@ -77,6 +133,8 @@ const getVenueActivity = async (venueId) => {
 };
 
 const updateVenueStatus = async (id, isActive) => {
+        await invalidateVenuesCache(); // <-- ƏLAVƏ EDİLDİ
+
     return prisma.venue.update({
         where: { id },
         data: { isActive },
@@ -84,6 +142,8 @@ const updateVenueStatus = async (id, isActive) => {
 };
 
 const updateVenueFeatureStatus = async (id, isFeatured) => {
+        await invalidateVenuesCache(); // <-- ƏLAVƏ EDİLDİ
+
     return prisma.venue.update({
         where: { id },
         data: { isFeatured },

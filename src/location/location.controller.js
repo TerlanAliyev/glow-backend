@@ -50,11 +50,21 @@ const setIncognito = asyncHandler(async (req, res) => {
     res.status(200).json({ message: `Görünməz rejim uğurla ${status ? 'aktiv' : 'deaktiv'} edildi.` });
 });
 const finalizeCheckIn = asyncHandler(async (req, res) => {
-    const { venueId } = req.body;
-    if (!venueId) {
-        return res.status(400).json({ message: 'venueId sahəsi məcburidir.' });
+    const { venueId, latitude, longitude } = req.body;
+    
+    // Validasiya yoxlamaları router səviyyəsində ediləcək
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+        return res.status(400).json({ errors: errors.array() });
     }
-    const session = await locationService.finalizeCheckIn(req.user.userId, Number(venueId));
+
+    const session = await locationService.finalizeCheckIn(
+        req.user.userId,
+        Number(venueId),
+        latitude,
+        longitude
+    );
+
     res.status(200).json({
         status: 'CHECKED_IN',
         message: `Siz uğurla '${session.venue.name}'-a daxil oldunuz!`,

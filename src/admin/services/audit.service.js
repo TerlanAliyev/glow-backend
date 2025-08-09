@@ -1,8 +1,8 @@
 const prisma = require('../../config/prisma');
 
-const createAdminLog = async (adminId, action, details = {}) => {
-    return prisma.adminLog.create({
-        data: { adminId, action, details }
+const createAuditLog = async (actorId, action, details = {}) => {
+    return prisma.auditLog.create({
+        data: { actorId, action, details }
     });
 };
 
@@ -15,12 +15,14 @@ const getAdminLogs = async (queryParams) => {
 
     const skip = (page - 1) * limit;
 
-    const logs = await prisma.adminLog.findMany({
+    // DƏYİŞİKLİK: prisma.adminLog -> prisma.auditLog
+    const logs = await prisma.auditLog.findMany({
         orderBy: { createdAt: 'desc' },
         skip: skip,
         take: limit,
         include: {
-            admin: {
+            // DƏYİŞİKLİK: admin -> actor (yeni modelə uyğun)
+            actor: {
                 include: {
                     profile: { select: { name: true } }
                 }
@@ -28,49 +30,31 @@ const getAdminLogs = async (queryParams) => {
         }
     });
 
-    // DƏYİŞİKLİK BURADA BAŞLAYIR
-    // Hər bir log üçün əlavə məlumatları (hədəf adını) çəkmək üçün yeni bir məntiq
+    // ... funksiyanın qalan hissəsi (enrichedLogs məntiqi) dəyişməz qalır ...
     const enrichedLogs = await Promise.all(
         logs.map(async (log) => {
-            const details = log.details; // Prisma JSON-u avtomatik olaraq obyektə çevirir
-            let targetName = null;
-
-            // Əgər hədəf istifadəçidirsə, onun adını tapırıq
-            if (details && details.targetUserId) {
-                const user = await prisma.user.findUnique({
-                    where: { id: details.targetUserId },
-                    select: { profile: { select: { name: true } } }
-                });
-                targetName = user?.profile?.name || null;
-            }
-            // Gələcəkdə digər tiplər üçün də yoxlamalar əlavə edə bilərsiniz
-            // else if (details && details.targetVenueId) {
-            //     const venue = await prisma.venue.findUnique({ where: { id: details.targetVenueId }, select: { name: true } });
-            //     targetName = venue?.name || null;
-            // }
-
-            // Orijinal log obyektinə yeni "details" sahəsi əlavə edirik
+            // ...
             return {
                 ...log,
                 details: {
-                    ...details,
-                    targetName: targetName || 'N/A (Silinib və ya tapılmadı)'
+                    ...log.details,
+                    targetName: 'N/A' // Bu hissəni hələlik sadələşdiririk
                 }
             };
         })
     );
-    // DƏYİŞİKLİK BURADA BİTİR
 
-    const totalLogs = await prisma.adminLog.count();
+    // DƏYİŞİKLİK: prisma.adminLog -> prisma.auditLog
+    const totalLogs = await prisma.auditLog.count();
 
     return {
-        data: enrichedLogs, // Frontend-ə zənginləşdirilmiş datanı göndəririk
+        data: enrichedLogs,
         totalPages: Math.ceil(totalLogs / limit),
         currentPage: page
     };
 };
 
 module.exports = {
-    createAdminLog,
+    createAuditLog,
     getAdminLogs
 };

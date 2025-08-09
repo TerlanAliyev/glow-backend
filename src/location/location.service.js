@@ -1,7 +1,25 @@
 
 const prisma = require('../config/prisma');
+const gamificationService = require('../gamification/gamification.service');
 
-// src/location/location.service.js faylındakı checkInUser funksiyasını bununla əvəz edin
+
+// Haversine formulası ilə məsafəni hesablamaq üçün funksiya
+const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
+    const R = 6371e3; // Yer kürəsinin radiusu (metrlə)
+    const φ1 = lat1 * Math.PI / 180;
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    return R * c; // Nəticə metrlə
+};
+const MAX_DISTANCE_METERS = 200; // Maksimum icazə verilən məsafə (metrlə)
+
 
 const checkInUser = async (userId, latitude, longitude) => {
     const nearbyVenues = await prisma.$queryRaw`
@@ -27,21 +45,81 @@ const checkInUser = async (userId, latitude, longitude) => {
 
     if (nearbyVenues.length === 1) {
         const venue = nearbyVenues[0];
-        const [activeSession, _] = await prisma.$transaction([
-            prisma.activeSession.upsert({
+        const distance = getDistanceInMeters(latitude, longitude, venue.latitude, venue.longitude);
+        if (distance > MAX_DISTANCE_METERS) {
+            const error = new Error(`Avtomatik check-in uğursuz oldu. Məkandan çox uzaqdasınız (təxminən ${Math.round(distance)} metr).`);
+            error.statusCode = 400;
+            throw error;
+        }
+
+        // DƏYİŞİKLİK: Sizin kodunuzu interaktiv tranzaksiya ilə birləşdiririk
+        const activeSession = await prisma.$transaction(async (tx) => {
+            const session = await tx.activeSession.upsert({
                 where: { userId: userId },
                 update: { venueId: venue.id, expiresAt: new Date(new Date().getTime() + 2 * 60 * 60 * 1000) },
                 create: { userId: userId, venueId: venue.id, expiresAt: new Date(new Date().getTime() + 2 * 60 * 60 * 1000) },
                 include: { venue: true }
-            }),
-            prisma.checkInHistory.create({
+            });
+
+            await tx.checkInHistory.create({
                 data: { userId: userId, venueId: venue.id }
-            })
-        ]);
+            });
+
+            // Nişan yoxlamasını tranzaksiya daxilində çağırırıq
+            await gamificationService.checkAndGrantBadges(userId, 'NEW_CHECKIN', tx);
+
+            return session; // Tranzaksiyadan nəticəni qaytarırıq
+        });
+
         return { status: 'CHECKED_IN', session: activeSession };
     }
 
     return { status: 'MULTIPLE_OPTIONS', venues: nearbyVenues };
+};
+
+
+const finalizeCheckIn = async (userId, venueId,userLatitude, userLongitude) => {
+ const venue = await prisma.venue.findUnique({ where: { id: venueId } });
+    if (!venue) {
+        const error = new Error('Məkan tapılmadı.');
+        error.statusCode = 404;
+        throw error;
+    }
+
+    const distance = getDistanceInMeters(userLatitude, userLongitude, venue.latitude, venue.longitude);
+
+    if (distance > MAX_DISTANCE_METERS) {
+        const error = new Error(`Check-in uğursuz oldu. Məkandan çox uzaqdasınız (təxminən ${Math.round(distance)} metr).`);
+        error.statusCode = 400;
+        throw error;
+    }
+
+    const activeSession = await prisma.$transaction(async (tx) => {
+        const session = await tx.activeSession.upsert({
+            where: { userId: userId },
+            update: {
+                venueId: venueId,
+                expiresAt: new Date(new Date().getTime() + 2 * 60 * 60 * 1000)
+            },
+            create: {
+                userId: userId,
+                venueId: venueId,
+                expiresAt: new Date(new Date().getTime() + 2 * 60 * 60 * 1000)
+            },
+            include: { venue: true }
+        });
+
+        await tx.checkInHistory.create({
+            data: { userId: userId, venueId: venueId }
+        });
+
+        // Nişan yoxlamasını tranzaksiya daxilində çağırırıq
+        await gamificationService.checkAndGrantBadges(userId, 'NEW_CHECKIN', tx);
+
+        return session; // Tranzaksiyadan nəticəni qaytarırıq
+    });
+
+    return activeSession;
 };
 
 // Test məqsədli funksiya
@@ -56,7 +134,7 @@ const seedDatabaseWithVenues = async () => {
     });
 };
 const setIncognitoStatus = async (userId, status) => {
-    // İstifadəçinin aktiv sessiyası olmalıdır
+    // 1. İstifadəçinin aktiv sessiyası olub-olmadığını yoxlayırıq (Bu hissə düzgündür)
     const activeSession = await prisma.activeSession.findUnique({
         where: { userId },
     });
@@ -67,32 +145,24 @@ const setIncognitoStatus = async (userId, status) => {
         throw error;
     }
 
-    return prisma.activeSession.update({
+    // 2. Əvvəlcə verilənlər bazasını yeniləyirik
+    const updatedSession = await prisma.activeSession.update({
         where: { userId },
         data: { isIncognito: status },
     });
-};
-const finalizeCheckIn = async (userId, venueId) => {
-    // Bu funksiya sadəcə verilən məkan ID-si ilə ActiveSession yaradır/yeniləyir
-    const [activeSession, _] = await prisma.$transaction([
-        prisma.activeSession.upsert({
-            where: { userId: userId },
-            update: {
-                venueId: venueId,
-                expiresAt: new Date(new Date().getTime() + 2 * 60 * 60 * 1000)
-            },
-            create: {
-                userId: userId,
-                venueId: venueId,
-                expiresAt: new Date(new Date().getTime() + 2 * 60 * 60 * 1000)
-            },
-            include: { venue: true }
-        }), prisma.checkInHistory.create({
-            data: { userId: userId, venueId: venueId }
-        })]);
 
-    return activeSession;
+    // 3. Sonra uğurlu əməliyyatı qeydə alırıq (loglayırıq)
+    await createAuditLog(
+        userId, 
+        status ? 'USER_ACTIVATED_INCOGNITO' : 'USER_DEACTIVATED_INCOGNITO',
+        // DƏYİŞİKLİK: Artıq mövcud olan 'activeSession'-dan istifadə edirik
+        { venueId: activeSession.venueId } 
+    );
+
+    // 4. Yenilənmiş sessiyanı geri qaytarırıq
+    return updatedSession;
 };
+
 
 // statistics funksiyası
 const getVenueStats = async (venueId) => {
@@ -157,9 +227,10 @@ const getLiveVenueStats = async (venueId) => {
         ageRange
     };
 };
+
 module.exports = {
     checkInUser,
     seedDatabaseWithVenues,
     setIncognitoStatus,
-    finalizeCheckIn, getVenueStats, getLiveVenueStats
+    finalizeCheckIn, getVenueStats, getLiveVenueStats,getDistanceInMeters
 };

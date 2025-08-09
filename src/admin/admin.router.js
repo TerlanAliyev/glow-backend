@@ -34,12 +34,15 @@ const {
     updateUserSubscription,updateUserContact,triggerVenueStatCalculation,
     getVerificationRequests, 
     updateVerificationStatus,
-    getBadges, createBadge, updateBadge, deleteBadge
+    getBadges, createBadge, updateBadge, deleteBadge,
+    getBadgeRules, createBadgeRule,
+    
 
 } = require('./admin.controller');
 const { authenticateToken } = require('../middleware/auth.middleware');
 const { isAdmin } = require('../middleware/admin.middleware');
 const { body } = require('express-validator');
+const upload = require('../upload/upload.service'); // <-- YENİ İMPORT
 
 const router = express.Router();
 const adminOnly = [authenticateToken, isAdmin]; // Qısa yol
@@ -122,8 +125,15 @@ router.patch('/verifications/:profileId/status', adminOnly, updateVerificationSt
 
 // === GAMIFICATION (BADGE) MANAGEMENT ===
 router.get('/badges', adminOnly, getBadges);
-router.post('/badges', adminOnly, createBadge);
-router.patch('/badges/:id', adminOnly, updateBadge);
+router.post('/badges', adminOnly, upload.single('icon'), createBadge);
+router.patch('/badges/:id', adminOnly, upload.single('icon'), updateBadge);
 router.delete('/badges/:id', adminOnly, deleteBadge);
+
+
+// === GAMIFICATION (BADGE) MANAGEMENT ===
+router.get('/badges/rules', adminOnly, getBadgeRules);
+router.post('/badges/rules', adminOnly, createBadgeRule);
+router.get('/badges', adminOnly, getBadges);
+
 
 module.exports = router;

@@ -108,11 +108,15 @@ const updateMyStatus = asyncHandler(async (req, res) => {
     });
 });
 
-
+const getMyProfileCompletion = asyncHandler(async (req, res) => {
+    const userId = req.user.userId;
+    const completionData = await profileService.getProfileCompletion(userId);
+    res.status(200).json(completionData);
+});
 module.exports = {
     updateMyProfile,
     uploadAvatar,
     uploadPhotos,
     getMyProfileViews,deletePhoto,setPrimaryPhoto,updateMyPreferences,
-    requestVerification,updateMyStatus
+    requestVerification,updateMyStatus,getMyProfileCompletion
 };

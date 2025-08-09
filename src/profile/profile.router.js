@@ -2,7 +2,7 @@
 const express = require('express');
 const { authenticateToken } = require('../middleware/auth.middleware');
 const { body } = require('express-validator');
-const { updateMyProfile,updateMyStatus,requestVerification,updateMyPreferences, uploadAvatar,uploadPhotos , getMyProfileViews,deletePhoto,setPrimaryPhoto} = require('./profile.controller');
+const { updateMyProfile,updateMyStatus,requestVerification,updateMyPreferences, uploadAvatar,uploadPhotos , getMyProfileViews,deletePhoto,setPrimaryPhoto,getMyProfileCompletion } = require('./profile.controller');
 const { isPremium } = require('../middleware/premium.middleware');
 const upload = require('../upload/upload.service'); // Yeni upload servisini import edirik
 
@@ -32,6 +32,9 @@ router.post(
     requestVerification
 );
 
+router.get('/me/completion', authenticateToken, getMyProfileCompletion);
+
 //Premium function
 router.get('/me/views', authenticateToken, isPremium, getMyProfileViews);
+
 module.exports = router;

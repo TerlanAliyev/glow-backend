@@ -224,6 +224,7 @@ const options = {
           }
         }
       },
+
       '/api/profile/me/status': {
         patch: {
           tags: ['Profile'],
@@ -355,6 +356,54 @@ const options = {
           }
         }
       },
+      '/api/profile/me/completion': {
+        get: {
+          tags: ['Profile'],
+          summary: 'Hazırkı istifadəçinin profil tamamlama faizini və təklifləri gətirir',
+          description: "İstifadəçinin profilinin nə qədər dolu olduğunu (bio, şəkillər, maraqlar, verifikasiya) hesablayır və 100% etmək üçün çatışmayan hissələri göstərir.",
+          security: [{ bearerAuth: [] }],
+          responses: {
+            '200': {
+              description: 'Profil tamamlama məlumatları uğurla qaytarıldı',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      percentage: {
+                        type: 'integer',
+                        description: 'Profilin tamamlanma faizi (0-100)',
+                        example: 80
+                      },
+                      missing: {
+                        type: 'array',
+                        description: 'Tamamlanma üçün çatışmayan hissələrin kodları',
+                        items: {
+                          type: 'string'
+                        },
+                        example: ['isVerified']
+                      },
+                      suggestions: {
+                        type: 'object',
+                        description: 'Bütün mümkün təkliflərin siyahısı',
+                        properties: {
+                          hasAvatar: { type: 'string' },
+                          hasBio: { type: 'string' },
+                          hasThreeInterests: { type: 'string' },
+                          hasFourPhotos: { type: 'string' },
+                          isVerified: { type: 'string' }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            '401': { description: 'Avtorizasiya xətası' },
+            '404': { description: 'Profil tapılmadı' }
+          }
+        }
+      },
       '/api/profile/me/views': {
         get: {
           tags: ['Profile', 'Premium'],
@@ -425,7 +474,41 @@ const options = {
           }
         }
       },
-
+      '/api/purchase/subscription': {
+        post: {
+          tags: ['Premium'],
+          summary: 'Aylıq və ya İllik premium abunəliyi aktivləşdirir',
+          description: "Mobil tətbiq, istifadəçi abunəlik aldıqdan sonra Apple/Google-dan aldığı qəbzi (receipt) və seçdiyi planı bu endpoint-ə göndərir.",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    plan: {
+                      type: 'string',
+                      enum: ['PREMIUM_MONTHLY', 'PREMIUM_YEARLY'],
+                      example: 'PREMIUM_MONTHLY'
+                    },
+                    receipt: {
+                      type: 'string',
+                      example: 'apple_or_google_receipt_data'
+                    }
+                  },
+                  required: ['plan', 'receipt']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { description: 'Abunəlik uğurla aktivləşdirildi' },
+            '400': { description: 'Yanlış abunəlik planı növü' },
+            '401': { description: 'Avtorizasiya xətası' }
+          }
+        }
+      },
       '/api/interest': {
         get: {
           tags: ['Interest'],
@@ -435,7 +518,6 @@ const options = {
           }
         }
       },
-
       '/api/location/check-in': {
         post: {
           tags: ['Location'],
@@ -496,8 +578,9 @@ const options = {
         post: {
           tags: ['Location'],
           summary: 'İstifadəçinin seçdiyi məkan ilə check-in prosesini tamamlayır',
-          description: "'Ağıllı Check-in' sorğusu 'MULTIPLE_OPTIONS' statusu qaytardıqda, istifadəçinin seçdiyi məkanın ID-si bu endpoint-ə göndərilir.",
+          description: "'Ağıllı Check-in' sorğusu 'MULTIPLE_OPTIONS' statusu qaytardıqda, istifadəçinin seçdiyi məkanın ID-si və hazırkı koordinatları bu endpoint-ə göndərilir.",
           security: [{ bearerAuth: [] }],
+          // DƏYİŞİKLİK BURADADIR
           requestBody: {
             required: true,
             content: {
@@ -505,16 +588,18 @@ const options = {
                 schema: {
                   type: 'object',
                   properties: {
-                    venueId: { type: 'integer', example: 1 }
+                    venueId: { type: 'integer', example: 1 },
+                    latitude: { type: 'number', example: 40.3777 },
+                    longitude: { type: 'number', example: 49.8344 }
                   },
-                  required: ['venueId']
+                  required: ['venueId', 'latitude', 'longitude'] // Artıq hər üçü məcburidir
                 }
               }
             }
           },
           responses: {
             '200': { description: 'Check-in uğurla tamamlandı' },
-            '400': { description: 'venueId təqdim edilməyib' }
+            '400': { description: 'Məlumatlar tam deyil və ya məkandan çox uzaqdasınız' }
           }
         }
       },
@@ -1802,6 +1887,40 @@ const options = {
           }
         }
       },
+      //  Admin - Gamification ===
+      '/api/admin/badges/rules': {
+        get: {
+          tags: ['Admin - Gamification'],
+          summary: 'Sistemdəki bütün nişan qaydalarını gətirir',
+          description: "Bu endpoint, adminin yeni bir nişan yaradarkən seçə biləcəyi bütün mümkün qaydaların (məsələn, 'Bağlantı Sayı') siyahısını təqdim edir.",
+          security: [{ bearerAuth: [] }],
+          responses: { '200': { description: 'Bütün qaydaların siyahısı' } }
+        },
+        post: {
+          tags: ['Admin - Gamification'],
+          summary: 'Yeni bir nişan qaydası yaradır',
+          description: "Bu, sistemə yeni bir nişan qazanma məntiqi əlavə etmək üçün istifadə olunur (məsələn, 'Profilin Tamamlanma Faizi'). Qeyd: burada yaradılan 'code' dəyəri backend-dəki ruleImplementations obyekti ilə eyni olmalıdır.",
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    code: { type: 'string', example: 'CONNECTION_COUNT' },
+                    name: { type: 'string', example: 'Bağlantı Sayı' },
+                    description: { type: 'string', example: 'İstifadəçinin ümumi bağlantı sayını hesablayır.' },
+                    triggerAction: { type: 'string', example: 'NEW_MATCH' }
+                  },
+                  required: ['code', 'name', 'triggerAction']
+                }
+              }
+            }
+          },
+          responses: { '201': { description: 'Qayda uğurla yaradıldı' } }
+        }
+      },
       '/api/admin/badges': {
         get: {
           tags: ['Admin - Gamification'],
@@ -1811,21 +1930,24 @@ const options = {
         },
         post: {
           tags: ['Admin - Gamification'],
-          summary: 'Yeni bir nişan yaradır',
+          summary: 'Mövcud bir qaydaya əsaslanaraq yeni bir nişan yaradır',
           security: [{ bearerAuth: [] }],
           requestBody: {
             required: true,
             content: {
-              'application/json': {
+              'multipart/form-data': {
                 schema: {
                   type: 'object',
                   properties: {
+                    icon: { type: 'string', format: 'binary', description: 'Nişanın ikon şəkli' },
                     code: { type: 'string', example: 'SOCIAL_BUTTERFLY_1' },
                     name: { type: 'string', example: 'Sosial Kəpənək' },
                     description: { type: 'string', example: '10 fərqli istifadəçi ilə "match" ol' },
-                    iconUrl: { type: 'string', example: 'http://example.com/icon.png' }
+                    // DƏYİŞİKLİK: Köhnə sahələr bunlarla əvəz olundu
+                    ruleId: { type: 'integer', description: 'Bu nişanın bağlı olduğu qaydanın ID-si' },
+                    checkValue: { type: 'integer', description: 'Qaydanın tələb etdiyi hədəf rəqəm', example: 10 }
                   },
-                  required: ['code', 'name', 'description', 'iconUrl']
+                  required: ['icon', 'code', 'name', 'description', 'ruleId', 'checkValue']
                 }
               }
             }
@@ -1836,33 +1958,29 @@ const options = {
       '/api/admin/badges/{id}': {
         patch: {
           tags: ['Admin - Gamification'],
-          summary: 'Mövcud bir nişanı yeniləyir',
+          summary: 'Mövcud bir nişanı yeniləyir (şəkil yükləməklə)',
           security: [{ bearerAuth: [] }],
           parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'integer' } }],
-          // --- TAM VERSİYA BURADADIR ---
           requestBody: {
             required: true,
+            // DƏYİŞİKLİK: content type dəyişdi
             content: {
-              'application/json': {
+              'multipart/form-data': {
                 schema: {
                   type: 'object',
-                  properties: {
-                    code: { type: 'string', example: 'SOCIAL_BUTTERFLY_1' },
-                    name: { type: 'string', example: 'Sosial Kəpənək' },
-                    description: { type: 'string', example: '10 fərqli istifadəçi ilə "match" ol' },
-                    iconUrl: { type: 'string', example: 'http://example.com/icon.png' }
+                  properties: { // Sahələr eynidir, amma məcburi deyil
+                    icon: { type: 'string', format: 'binary' },
+                    code: { type: 'string' },
+                    name: { type: 'string' },
+                    description: { type: 'string' },
+                    ruleId: { type: 'integer' },
+                    checkValue: { type: 'integer' }
                   }
-                  // Qeyd: PATCH sorğusu olduğu üçün heç bir sahənin məcburi olmadığını göstərmək üçün
-                  // "required" massivini burada qeyd etmirik.
                 }
               }
             }
           },
-          // --- TAM VERSİYA BİTDİ ---
-          responses: {
-            '200': { description: 'Nişan uğurla yeniləndi' },
-            '404': { description: 'Bu ID ilə nişan tapılmadı' }
-          }
+          responses: { '200': { description: 'Nişan uğurla yeniləndi' } }
         },
         delete: {
           tags: ['Admin - Gamification'],

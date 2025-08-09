@@ -1,8 +1,8 @@
 const prisma = require('../../config/prisma');
 const redis = require('../../config/redis');
-const { createAdminLog } = require('./audit.service'); // Diqqət: audit servisinə istinad edirik
+const gamificationService = require('../../gamification/gamification.service'); // <-- YENİ İMPORT
+const { createAuditLog } = require('./audit.service.js');
 const { createAndSendNotification } = require('../../notification/notification.service');
-
 
 const getUsersList = async () => {
     const users = await prisma.user.findMany({
@@ -113,7 +113,7 @@ const updateUserRole = async (userId, roleId, adminId) => {
     });
 
     // Admin hərəkətini loglayırıq
-    await createAdminLog(adminId, 'USER_ROLE_CHANGED', {
+    await createAuditLog(adminId, 'USER_ROLE_CHANGED', {
         targetUserId: userId,
         newRoleId: roleId
     });
@@ -133,7 +133,7 @@ const updateUserStatus = async (userId, isActive, adminId) => {
     });
 
     // Admin hərəkətini loglayırıq
-    await createAdminLog(adminId, 'USER_STATUS_CHANGED', {
+    await createAuditLog(adminId, 'USER_STATUS_CHANGED', {
         targetUserId: userId,
         newStatus: isActive
     });
@@ -267,6 +267,7 @@ const getBannedUsers = async (queryParams) => {
     return result;
 };
 
+
 const deleteUser = async (targetUserId, adminId) => {
     // Adminin özünü silməsinin qarşısını alırıq
     if (targetUserId === adminId) {
@@ -275,8 +276,6 @@ const deleteUser = async (targetUserId, adminId) => {
         throw error;
     }
 
-    // Bu, çox mürəkkəb bir əməliyyatdır. Prisma Transaction istifadə edirik ki,
-    // bütün silmə əməliyyatları ya birlikdə uğurlu olsun, ya da heç biri olmasın.
     return prisma.$transaction(async (tx) => {
         // İstifadəçiyə aid olan bütün asılılıqları silirik
         await tx.signal.deleteMany({ where: { OR: [{ senderId: targetUserId }, { receiverId: targetUserId }] } });
@@ -289,7 +288,9 @@ const deleteUser = async (targetUserId, adminId) => {
         await tx.feedback.deleteMany({ where: { authorId: targetUserId } });
         await tx.checkInHistory.deleteMany({ where: { userId: targetUserId } });
         await tx.message.deleteMany({ where: { senderId: targetUserId } });
-        await tx.adminLog.deleteMany({ where: { adminId: targetUserId } });
+        
+        // DÜZƏLİŞ 1: Köhnə 'adminLog' sətri tamamilə silindi. Yalnız 'auditLog' qalır.
+        await tx.auditLog.deleteMany({ where: { actorId: targetUserId } });
 
         // Asılılıqlar silindikdən sonra profili silirik
         await tx.profile.deleteMany({ where: { userId: targetUserId } });
@@ -298,9 +299,10 @@ const deleteUser = async (targetUserId, adminId) => {
         const deletedUser = await tx.user.delete({ where: { id: targetUserId } });
 
         // Bu hərəkəti loglayırıq
-        await tx.adminLog.create({
+        await tx.auditLog.create({
             data: {
-                adminId: adminId,
+                // DÜZƏLİŞ 2: 'adminId' -> 'actorId' (yeni modelə uyğun)
+                actorId: adminId,
                 action: 'USER_DELETED',
                 details: { targetUserId: deletedUser.id, email: deletedUser.email }
             }
@@ -324,7 +326,7 @@ const updateUserContact = async (userId, data, adminId) => { // adminId parametr
     }
 
     // Admin hərəkətini qeydə alırıq
-    await createAdminLog(adminId, 'USER_CONTACT_CHANGED', { targetUserId: userId, changes: data });
+    await createAuditLog(adminId, 'USER_CONTACT_CHANGED', { targetUserId: userId, changes: data });
 
     return { message: "Məlumatlar uğurla yeniləndi." };
 };
@@ -411,6 +413,8 @@ const updateVerificationStatus = async (profileId, newStatus, adminId) => {
             'Təbriklər, profiliniz təsdiqləndi! İndi Lyra-nın bütün imkanlarından yararlana bilərsiniz. ✨',
             { profileId: updatedProfile.id.toString() }
         );
+                await gamificationService.grantBadge(updatedProfile.userId, 'VERIFIED_USER_1');
+
     } else if (newStatus === 'REJECTED') { // YENİ BLOK
         await createAndSendNotification(
             updatedProfile.userId,
@@ -422,10 +426,11 @@ const updateVerificationStatus = async (profileId, newStatus, adminId) => {
 
     
     // 3. Admin hərəkətini loglayırıq
-    await createAdminLog(adminId, 'USER_VERIFICATION_STATUS_CHANGED', {
-        targetUserId: profile.userId, // 'profile' obyektini istifadə edirik
+    await createAuditLog(adminId, 'USER_VERIFICATION_STATUS_CHANGED', {
+        targetUserId: profile.userId,
         newStatus: newStatus
-    });
+    });    await gamificationService.checkAndGrantBadges(updatedProfile.userId, 'PROFILE_UPDATE');
+
 
     // 4. İstifadəçi keşini təmizləyirik
     const cacheKey = `user_profile:${profile.userId}`;
