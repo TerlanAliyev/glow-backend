@@ -37,9 +37,12 @@ const updateTemplate = (templateId, data) => {
     
     if (data.name) templateData.name = data.name;
     if (data.description) templateData.description = data.description;
-    if (data.hasOwnProperty('isActive')) {
+    
+    // DÜZELİŞ: hasOwnProperty yerine 'in' operator veya Object.prototype.hasOwnProperty kullan
+    if ('isActive' in data || Object.prototype.hasOwnProperty.call(data, 'isActive')) {
         templateData.isActive = Boolean(data.isActive === 'true' || data.isActive === true);
     }
+    
     if (data.iconUrl) templateData.iconUrl = data.iconUrl;
     
     console.log('Final update data for Prisma:', templateData);
