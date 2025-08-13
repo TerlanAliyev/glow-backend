@@ -1294,25 +1294,96 @@ const options = {
           }
         }
       },
-
-      '/api/admin/stats': {
+      // --- YENİ BÖLMƏ: Görüş Təklifi (Challenge) Sistemi ---
+      '/api/challenges/templates': {
         get: {
-          tags: ['Admin'],
-          summary: 'Admin paneli üçün əsas statistik məlumatları gətirir',
+          tags: ['Challenge System'],
+          summary: 'İstifadəçilər üçün aktiv olan bütün "Görüş Təklifi" şablonlarını gətirir',
           security: [{ bearerAuth: [] }],
           responses: {
-            '200': {
-              description: 'Statistik məlumatlar uğurla qaytarıldı',
-              content: {
-                'application/json': {
-                  schema: { $ref: '#/components/schemas/DashboardStats' }
-                }
-              }
-            },
-            '403': { description: 'İcazə yoxdur' }
+            '200': { description: 'Aktiv şablonların siyahısı' },
+            '401': { description: 'Avtorizasiya xətası' }
           }
         }
       },
+      '/api/challenges/me': {
+        get: {
+          tags: ['Challenge System'],
+          summary: 'Hazırkı istifadəçinin göndərdiyi və aldığı bütün aktiv təklifləri gətirir',
+          security: [{ bearerAuth: [] }],
+          responses: {
+            '200': { description: 'Təkliflərin siyahısı' },
+            '401': { description: 'Avtorizasiya xətası' }
+          }
+        }
+      },
+      '/api/challenges': {
+        post: {
+          tags: ['Challenge System'],
+          summary: 'Başqa bir istifadəçiyə yeni bir "Görüş Təklifi" göndərir',
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    templateId: { type: 'integer', description: 'İstifadə olunacaq şablonun ID-si' },
+                    challengedId: { type: 'string', description: 'Təklifin göndərildiyi istifadəçinin ID-si' },
+                    connectionId: { type: 'integer', description: 'Təklifin aid olduğu "match"-in ID-si' },
+                    venueId: { type: 'integer', description: 'Görüşün təklif edildiyi məkanın ID-si' },
+                    challengeTime: { type: 'string', format: 'date-time', description: 'Görüşün təyin edildiyi vaxt (ISO 8601 formatında)', example: '2025-09-20T19:00:00.000Z' }
+                  },
+                  required: ['templateId', 'challengedId', 'connectionId', 'venueId', 'challengeTime']
+                }
+              }
+            }
+          },
+          responses: {
+            '201': { description: 'Təklif uğurla yaradıldı və göndərildi' },
+            '401': { description: 'Avtorizasiya xətası' }
+          }
+        }
+      },
+      '/api/challenges/{id}/respond': {
+        patch: {
+          tags: ['Challenge System'],
+          summary: 'Alınmış bir "Görüş Təklifi"-nə cavab verir (qəbul/rədd)',
+          security: [{ bearerAuth: [] }],
+          parameters: [{
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'integer' }
+          }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    response: {
+                      type: 'string',
+                      enum: ['ACCEPTED', 'DECLINED'],
+                      example: 'ACCEPTED'
+                    }
+                  },
+                  required: ['response']
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { description: 'Cavab uğurla qeydə alındı' },
+            '400': { description: 'Yanlış cavab dəyəri' },
+            '401': { description: 'Avtorizasiya xətası' },
+            '404': { description: 'Təklif tapılmadı və ya cavab verməyə icazəniz yoxdur' }
+          }
+        }
+      },
+
       '/api/admin/stats/summary': {
         get: {
           tags: ['Admin - Statistics'],
@@ -1357,19 +1428,19 @@ const options = {
           responses: { '200': { description: 'İstifadəçilərin siyahısı' } }
         }
       },
-      '/api/admin/users/search': {
-        get: {
-          tags: ['Admin'],
-          summary: 'Bütün istifadəçilərin siyahısını gətirir (səhifələmə ilə)',
-          security: [{ bearerAuth: [] }],
-          parameters: [
-            { name: 'search', in: 'query', schema: { type: 'string' }, description: 'Ad və ya email ilə axtarış' },
-            { name: 'page', in: 'query', schema: { type: 'integer' }, description: 'Səhifə nömrəsi' },
-            { name: 'limit', in: 'query', schema: { type: 'integer' }, description: 'Hər səhifədəki element sayı' },
-          ],
-          responses: { '200': { description: 'İstifadəçilərin siyahısı' } }
-        }
-      },
+      // '/api/admin/users/search': {
+      //   get: {
+      //     tags: ['Admin'],
+      //     summary: 'Bütün istifadəçilərin siyahısını gətirir (səhifələmə ilə)',
+      //     security: [{ bearerAuth: [] }],
+      //     parameters: [
+      //       { name: 'search', in: 'query', schema: { type: 'string' }, description: 'Ad və ya email ilə axtarış' },
+      //       { name: 'page', in: 'query', schema: { type: 'integer' }, description: 'Səhifə nömrəsi' },
+      //       { name: 'limit', in: 'query', schema: { type: 'integer' }, description: 'Hər səhifədəki element sayı' },
+      //     ],
+      //     responses: { '200': { description: 'İstifadəçilərin siyahısı' } }
+      //   }
+      // },
       '/api/admin/users/{id}/role': {
         patch: {
           tags: ['Admin'],
@@ -1990,6 +2061,94 @@ const options = {
           responses: {
             '204': { description: 'Nişan uğurla silindi' },
             '404': { description: 'Bu ID ilə nişan tapılmadı' }
+          }
+        }
+      },
+      // --- YENİ ENDPOINTLƏR: Təklif Şablonlarının İdarə Edilməsi ---
+      '/api/admin/challenge-templates': {
+        get: {
+          tags: ['Admin - Challenge Management'],
+          summary: 'Bütün "Görüş Təklifi" şablonlarını gətirir',
+          security: [{ bearerAuth: [] }],
+          responses: {
+            '200': { description: 'Bütün şablonların siyahısı' },
+            '403': { description: 'İcazə yoxdur' }
+          }
+        },
+        post: {
+          tags: ['Admin - Challenge Management'],
+          summary: 'Yeni bir "Görüş Təklifi" şablonu yaradır',
+          security: [{ bearerAuth: [] }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    name: { type: 'string', example: 'Bir Fincan Qəhvə' },
+                    description: { type: 'string', example: 'Gəl, birlikdə kofe içib söhbət edək.' },
+                    iconUrl: { type: 'string', example: 'http://example.com/coffee-icon.png' },
+                    isActive: { type: 'boolean', example: true }
+                  },
+                  required: ['name', 'description']
+                }
+              }
+            }
+          },
+          responses: {
+            '201': { description: 'Şablon uğurla yaradıldı' },
+            '403': { description: 'İcazə yoxdur' }
+          }
+        }
+      },
+      '/api/admin/challenge-templates/{id}': {
+        patch: {
+          tags: ['Admin - Challenge Management'],
+          summary: 'Mövcud bir "Görüş Təklifi" şablonunu yeniləyir',
+          security: [{ bearerAuth: [] }],
+          parameters: [{
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'integer' }
+          }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    name: { type: 'string' },
+                    description: { type: 'string' },
+                    iconUrl: { type: 'string' },
+                    isActive: { type: 'boolean' }
+                  }
+                }
+              }
+            }
+          },
+          responses: {
+            '200': { description: 'Şablon uğurla yeniləndi' },
+            '403': { description: 'İcazə yoxdur' },
+            '404': { description: 'Şablon tapılmadı' }
+          }
+        },
+        delete: {
+          tags: ['Admin - Challenge Management'],
+          summary: 'Bir "Görüş Təklifi" şablonunu silir',
+          security: [{ bearerAuth: [] }],
+          parameters: [{
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'integer' }
+          }],
+          responses: {
+            '204': { description: 'Şablon uğurla silindi' },
+            '403': { description: 'İcazə yoxdur' },
+            '404': { description: 'Şablon tapılmadı' }
           }
         }
       },

@@ -1,8 +1,8 @@
 
 const express = require('express');
 const cors = require('cors');
-const http = require('http'); 
-const { Server } = require("socket.io"); 
+const http = require('http');
+const { Server } = require("socket.io");
 const cron = require('node-cron');
 
 const swaggerUi = require('swagger-ui-express');
@@ -25,16 +25,18 @@ const feedbackRouter = require('./src/feedback/feedback.router'); // YENİ İMPO
 const adminRouter = require('./src/admin/admin.router'); // YENİ İMPORT
 const purchaseRouter = require('./src/purchase/purchase.router');
 const rewardsRouter = require('./src/rewards/rewards.router');
-const { sendReEngagementNotifications,calculateVenueStatistics } = require('./src/scheduler/scheduler.service');
+const { sendReEngagementNotifications, calculateVenueStatistics } = require('./src/scheduler/scheduler.service');
 const gamificationRouter = require('./src/gamification/gamification.router');
+const challengeRouter = require('./src/challenge/challenge.router');
+const { initializeScheduledJobs } = require('./src/scheduler/scheduler'); // <-- YENİ İMPORT
 
 const app = express();
-const server = http.createServer(app); 
+const server = http.createServer(app);
 
 // === DÜZƏLİŞ BURADADIR ===
 // CORS ayarını yenidən "*" edirik ki, həm admin.socket.io, həm də
 // bizim öz test.html faylımız qoşula bilsin.
-const io = new Server(server, { 
+const io = new Server(server, {
     cors: {
         origin: "*", // Bütün ünvanlardan gələn bağlantılara icazə ver
         methods: ["GET", "POST"]
@@ -53,7 +55,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/profile', profileRouter);
 app.use('/api/interest', interestRouter);
 app.use('/api/location', locationRouter);
-app.use('/api/chat', chatRouter); 
+app.use('/api/chat', chatRouter);
 app.use('/api/notification', notificationRouter); // YENİ ROUTER-İ QOŞURUQ
 app.use('/api/users', userRouter); // YENİ ROUTER-İ QOŞURUQ
 app.use('/api/connections', connectionRouter); // YENİ ROUTER-İ QOŞURUQ
@@ -64,10 +66,11 @@ app.use('/api/admin', adminRouter); // Admin routerini qoşuruq
 app.use('/api/purchase', purchaseRouter);
 app.use('/api/rewards', rewardsRouter);
 app.use('/api', gamificationRouter); // və ya '/api/gamification'
+app.use('/api', challengeRouter);
 
 
 app.get('/', (req, res) => {
-  res.send('Glow Backend is running! API docs available at /api-docs');
+    res.send('Glow Backend is running! API docs available at /api-docs');
 });
 cron.schedule('0 12 * * *', () => {
     sendReEngagementNotifications();
@@ -85,6 +88,7 @@ initializeSocket(io);
 app.use(errorHandler);
 
 server.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-  console.log(`API Documentation available at http://localhost:${PORT}/api-docs`);
+    console.log(`Server is running on port ${PORT}`);
+    console.log(`API Documentation available at http://localhost:${PORT}/api-docs`);
+    initializeScheduledJobs();
 });

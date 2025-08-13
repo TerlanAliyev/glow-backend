@@ -8,6 +8,7 @@ const marketingService = require('./services/marketing.service');
 const auditService = require('./services/audit.service');
 const icebreakerService = require('./services/icebreakers.service'); 
 const gamificationService = require('../gamification/gamification.service');
+const challengeManagementService = require('./services/challenge.management.service');
 
 const asyncHandler = (fn) => (req, res, next) => {
     Promise.resolve(fn(req, res, next)).catch(next);
@@ -371,6 +372,29 @@ const createBadgeRule = asyncHandler(async (req, res) => {
     res.status(201).json(newRule);
 });
 
+// === CHALLENGE TEMPLATE MANAGEMENT ===
+const getChallengeTemplates = asyncHandler(async (req, res) => {
+    const templates = await challengeManagementService.getAllTemplates(req.query);
+    res.status(200).json(templates);
+});
+
+const createChallengeTemplate = asyncHandler(async (req, res) => {
+    const newTemplate = await challengeManagementService.createTemplate(req.body);
+    res.status(201).json(newTemplate);
+});
+
+const updateChallengeTemplate = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    const updatedTemplate = await challengeManagementService.updateTemplate(id, req.body);
+    res.status(200).json(updatedTemplate);
+});
+
+const deleteChallengeTemplate = asyncHandler(async (req, res) => {
+    const { id } = req.params;
+    await challengeManagementService.deleteTemplate(id);
+    res.status(204).send();
+});
+
 
 module.exports = {
      getUsers, updateUserRole, updateUserStatus, getReports, updateReportStatus,
@@ -388,5 +412,8 @@ module.exports = {
     updateUserSubscription,updateUserContact,triggerVenueStatCalculation,
     getVerificationRequests, updateVerificationStatus,
     getBadges, createBadge, updateBadge, deleteBadge,
-    getBadgeRules, createBadgeRule,
+    getBadgeRules, createBadgeRule,getChallengeTemplates,
+    createChallengeTemplate,
+    updateChallengeTemplate,
+    deleteChallengeTemplate,
 };

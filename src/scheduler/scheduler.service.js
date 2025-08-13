@@ -99,7 +99,50 @@ const calculateVenueStatistics = async () => {
     }
 };
 
+// Verilənlər bazası təmizləmə funksiyasını da əlavə edirik
+// Bu funksiya köhnə Refresh Token-ləri, Password Reset Token-ləri və   
+// köhnə Görüş Təkliflərini silmək üçün istifadə olunacaq
+// Bu funksiya hər gün gecə yarısı işə düşəcək
+
+const runDatabaseCleanup = async () => {
+    console.log(`[Scheduler] Verilənlər bazası təmizləmə tapşırığı başladı... ${new Date().toLocaleString()}`);
+    try {
+        const now = new Date();
+
+        // 1. Müddəti bitmiş Refresh Token-ləri silirik
+        const deletedRefreshTokens = await prisma.refreshToken.deleteMany({
+            where: { expiresAt: { lt: now } }
+        });
+        if (deletedRefreshTokens.count > 0) {
+            console.log(`[Scheduler] ${deletedRefreshTokens.count} köhnə Refresh Token silindi.`);
+        }
+
+        // 2. Müddəti bitmiş şifrə bərpa kodlarını silirik
+        const deletedPasswordTokens = await prisma.passwordResetToken.deleteMany({
+            where: { expiresAt: { lt: now } }
+        });
+        if (deletedPasswordTokens.count > 0) {
+            console.log(`[Scheduler] ${deletedPasswordTokens.count} köhnə şifrə bərpa kodu silindi.`);
+        }
+
+        // 3. 1 aydan daha köhnə, rədd edilmiş və ya vaxtı keçmiş Görüş Təkliflərini silirik
+        const oneMonthAgo = new Date(now.setMonth(now.getMonth() - 1));
+        const deletedChallenges = await prisma.challengeInstance.deleteMany({
+            where: {
+                status: { in: ['DECLINED', 'EXPIRED'] },
+                createdAt: { lt: oneMonthAgo }
+            }
+        });
+        if (deletedChallenges.count > 0) {
+            console.log(`[Scheduler] ${deletedChallenges.count} köhnə Görüş Təklifi silindi.`);
+        }
+
+        console.log(`[Scheduler] Təmizləmə tapşırığı uğurla tamamlandı.`);
+    } catch (error) {
+        console.error('[Scheduler] Təmizləmə zamanı xəta baş verdi:', error);
+    }
+};
 // Yeni funksiyanı da module.exports-ə əlavə edirik
 module.exports = { 
-    sendReEngagementNotifications,calculateVenueStatistics
+    sendReEngagementNotifications,calculateVenueStatistics,runDatabaseCleanup
 };

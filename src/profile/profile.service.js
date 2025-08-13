@@ -308,60 +308,13 @@ const updateProfileStatus = async (userId, status) => {
     return updatedProfile;
 };
 
-//  
-const getProfileCompletion = async (userId) => {
-    // 1. İstifadəçinin bütün lazımi məlumatlarını bir sorğuda çəkirik
-    const userProfile = await prisma.profile.findUnique({
-        where: { userId },
-        include: {
-            photos: { select: { id: true } },
-            interests: { select: { id: true } },
-        }
-    });
 
-    if (!userProfile) {
-        const error = new Error('Profil tapılmadı.');
-        error.statusCode = 404;
-        throw error;
-    }
 
-    // 2. Qaydaları və onların "çəkisini" təyin edirik
-    const completionCriteria = {
-        hasAvatar: { weight: 20, satisfied: userProfile.photos.length > 0 },
-        hasBio: { weight: 20, satisfied: !!userProfile.bio && userProfile.bio.trim() !== "" },
-        hasThreeInterests: { weight: 20, satisfied: userProfile.interests.length >= 3 },
-        hasFourPhotos: { weight: 20, satisfied: userProfile.photos.length >= 4 },
-        isVerified: { weight: 20, satisfied: userProfile.isVerified },
-    };
-
-    // 3. Ümumi faizi və çatışmayan hissələri hesablayırıq
-    let totalPercentage = 0;
-    const missingParts = [];
-
-    for (const key in completionCriteria) {
-        if (completionCriteria[key].satisfied) {
-            totalPercentage += completionCriteria[key].weight;
-        } else {
-            missingParts.push(key); // Məs: ['hasBio', 'isVerified']
-        }
-    }
-    return {
-        percentage: totalPercentage,
-        missing: missingParts,
-        suggestions: {
-            hasAvatar: "Profilinə ilk şəklini əlavə et.",
-            hasBio: "Bio (Haqqında) bölməsini dolduraraq özünü tanıt.",
-            hasThreeInterests: "Ən azı 3 maraq sahəsi seç.",
-            hasFourPhotos: "Daha çox diqqət çəkmək üçün ən az 4 şəkil yüklə.",
-            isVerified: "Profilini təsdiqlədərək güvən qazan.",
-        }
-    };
-};
 
 module.exports = {
     updateUserProfile,
     addPhotosToProfile,
     getProfileViews, deletePhoto, setPrimaryPhoto, updateUserPreferences,
     requestProfileVerification, updateProfileStatus,
-    getProfileCompletion
+
 };

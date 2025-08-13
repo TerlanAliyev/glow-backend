@@ -64,10 +64,9 @@ const reportGroupMessage = async (reporterId, messageId, reason) => {
     });
 };
 const getRandomIcebreakers = async (count = 3) => {
-    // Bu kod, databazadan təsadüfi 3 sual seçmənin səmərəli yoludur.
     const questions = await prisma.$queryRaw`
-        SELECT * FROM "IcebreakerQuestion"
-        ORDER BY RANDOM()
+        SELECT * FROM \`IcebreakerQuestion\`
+        ORDER BY RAND()
         LIMIT ${count};
     `;
     return questions;

@@ -1,9 +1,8 @@
+const healthService = require('./health.service');
 
-const checkHealth = (req, res) => {
-    res.status(200).json({
-        status: 'ok',
-        timestamp: new Date().toISOString(),
-    });
+const checkHealth = async (req, res) => {
+    const healthStatus = await healthService.getComprehensiveHealthStatus();
+    res.status(healthStatus.httpStatusCode).json(healthStatus);
 };
 
 module.exports = {

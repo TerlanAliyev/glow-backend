@@ -4,7 +4,7 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
+  provider = "mysql"
   url      = env("DATABASE_URL")
 }
 
@@ -50,7 +50,13 @@ enum VerificationStatus {
   APPROVED
   REJECTED
 }
-
+enum ChallengeInstanceStatus {
+  PENDING   // Təklif göndərilib, cavab gözləyir
+  ACCEPTED  // Təklif qəbul edilib
+  DECLINED  // Təklif rədd edilib
+  COMPLETED // Uğurla tamamlanıb
+  EXPIRED   // Vaxtı keçib
+}
 
 model User {
   id              String          @id @default(uuid())
@@ -95,6 +101,9 @@ model User {
   groupMessageReactions GroupMessageReaction[] // Bu sətri əlavə edin
   checkInHistory CheckInHistory[]
   badges UserBadge[] // YENİ ƏLAQƏ
+
+  sentChallenges     ChallengeInstance[] @relation("SentChallenges")
+  receivedChallenges ChallengeInstance[] @relation("ReceivedChallenges")
 }
 
 model Profile {
@@ -157,6 +166,7 @@ model Venue {
   category     VenueCategory @default(GENERAL) // YENİ SAHƏ
   statsSummary Json? 
   checkInHistory CheckInHistory[]
+  challenges ChallengeInstance[]
 
 }
 
@@ -190,6 +200,7 @@ model Connection {
   userB     User      @relation("UserBConnections", fields: [userBId], references: [id])
   userBId   String
   messages  Message[]
+  challenges ChallengeInstance[]
 
   @@unique([userAId, userBId])
 }
@@ -372,12 +383,17 @@ model EmailChangeToken {
 
 model RefreshToken {
   id        Int      @id @default(autoincrement())
-  token     String   @unique
+  
+  // DƏYİŞİKLİK 1: Sahənin üzərindən @unique atributunu silirik
+  token     String   @db.Text 
+
   expiresAt DateTime
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId    String
   createdAt DateTime @default(now())
 
-  userId    String
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  // DƏYİŞİKLİK 2: Unikallığı burada, indeks olaraq təyin edirik
+  @@unique([token(length: 255)])
 }
 
 model GroupMessageReaction {
@@ -435,4 +451,46 @@ model BadgeRule {
   description   String   // Admin üçün izah
   triggerAction String   // Hansı hadisənin bu yoxlamanı başladacağını göstərən sadə mətn (məs: 'NEW_MATCH')
   badges        Badge[]
+}
+
+model ChallengeTemplate {
+    id          Int      @id @default(autoincrement()) 
+  name        String
+  description String   // Məs: "Gəl, birlikdə kofe içib söhbət edək."
+  iconUrl     String?
+  isActive    Boolean  @default(true) // Admin bu təklif növünü deaktiv edə bilər
+
+  instances   ChallengeInstance[]
+
+  createdAt   DateTime @default(now())
+}
+
+model ChallengeInstance {
+  id            Int      @id @default(autoincrement())
+  status        ChallengeInstanceStatus @default(PENDING)
+  challengeTime DateTime
+  
+  // Hansı şablona əsaslandığı
+  template      ChallengeTemplate     @relation(fields: [templateId], references: [id])
+  templateId    Int
+
+  // Tərəflər
+  challenger    User     @relation("SentChallenges", fields: [challengerId], references: [id], onDelete: Cascade)
+  challengerId  String
+  challenged    User     @relation("ReceivedChallenges", fields: [challengedId], references: [id], onDelete: Cascade)
+  challengedId  String
+
+  // Hansı "match"-ə aid olduğu
+  connection    Connection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  connectionId  Int
+
+  // Hansı məkanda görüş təyin edildiyi
+  venue         Venue    @relation(fields: [venueId], references: [id], onDelete: Cascade)
+  venueId       Int
+
+  challengerCheckedIn Boolean @default(false)
+  challengedCheckedIn Boolean @default(false)
+
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 }

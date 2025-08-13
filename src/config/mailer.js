@@ -54,4 +54,7 @@ const sendEmailChangeConfirmationEmail = async (to, token) => {
     };
     await transporter.sendMail(mailOptions);
 };
-module.exports = { sendPasswordResetEmail, sendAccountDeletionEmail,sendEmailChangeConfirmationEmail };
+module.exports = { transporter, 
+    sendPasswordResetEmail,
+    sendAccountDeletionEmail,
+    sendEmailChangeConfirmationEmail };

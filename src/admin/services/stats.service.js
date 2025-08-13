@@ -20,18 +20,18 @@ const getStatsSummary = async () => {
 };
 
 const getUsageOverTime = async () => {
+    // DÜZƏLİŞ: Sorğu MySQL sintaksisinə uyğunlaşdırıldı
     const result = await prisma.$queryRaw`
         SELECT 
-            DATE("createdAt") as date, 
+            DATE(createdAt) as date, 
             COUNT(id) as count 
-        FROM "User" 
-        WHERE "createdAt" >= NOW() - INTERVAL '30 days' 
-        GROUP BY DATE("createdAt") 
+        FROM \`User\` 
+        WHERE createdAt >= NOW() - INTERVAL 30 DAY 
+        GROUP BY DATE(createdAt) 
         ORDER BY date ASC;
     `;
+    // Dəyişikliklər: "User" -> `User`, "createdAt" -> createdAt, '30 days' -> 30 DAY
 
-    // === DÜZƏLİŞ BURADADIR ===
-    // Databazadan gələn `BigInt` tipini JSON-un anladığı `Number`-a çeviririk.
     return result.map(row => ({
         ...row,
         count: Number(row.count)

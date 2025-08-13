@@ -1,6 +1,7 @@
 
 const { validationResult } = require('express-validator');
 const profileService = require('./profile.service');
+const gamificationService = require('../gamification/gamification.service');
 
 const asyncHandler = (fn) => (req, res, next) => {
     Promise.resolve(fn(req, res, next)).catch(next);
@@ -110,7 +111,7 @@ const updateMyStatus = asyncHandler(async (req, res) => {
 
 const getMyProfileCompletion = asyncHandler(async (req, res) => {
     const userId = req.user.userId;
-    const completionData = await profileService.getProfileCompletion(userId);
+    const completionData = await gamificationService.getProfileCompletion(userId);
     res.status(200).json(completionData);
 });
 module.exports = {

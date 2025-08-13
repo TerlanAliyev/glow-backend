@@ -1,7 +1,6 @@
 
 const prisma = require('../config/prisma');
 const { createAndSendNotification } = require('../notification/notification.service');
-const profileService = require('../profile/profile.service'); // <-- YENİ İMPORT
 
 
 const ruleImplementations = {
@@ -32,7 +31,7 @@ const ruleImplementations = {
         where: { profile: { userId: userId } }
     }),
      PROFILE_COMPLETION_PERCENTAGE: async (userId) => {
-        const completionData = await profileService.getProfileCompletion(userId);
+        const completionData = await getProfileCompletion(userId);
         return completionData.percentage;
     },
     // GƏLƏCƏKDƏ YENİ BİR QAYDA YAZSANIZ, SADƏCƏ ONU BURAYA ƏLAVƏ EDƏCƏKSİNİZ
@@ -77,10 +76,19 @@ const getAllBadges = () => {
     });
 };
 
-const createBadge = (data) => {
+const createBadge = async(data) => {
     // DÜZƏLİŞ: Artıq ruleId və checkValue-nu da datadan götürürük
     const { code, name, description, iconUrl, ruleId, checkValue } = data;
-    
+    if (ruleId) {
+        const ruleExists = await prisma.badgeRule.findUnique({
+            where: { id: Number(ruleId) }
+        });
+        if (!ruleExists) {
+            const error = new Error(`Bu ID (${ruleId}) ilə heç bir qayda tapılmadı.`);
+            error.statusCode = 400; // Bad Request
+            throw error;
+        }
+    }
     return prisma.badge.create({
         data: { 
             code, 
@@ -89,8 +97,8 @@ const createBadge = (data) => {
             iconUrl, 
             // Və onları databazaya yazırıq.
             // Formdan gələn datalar string ola biləcəyi üçün onları rəqəmə çevirmək daha təhlükəsizdir.
-            ruleId: Number(ruleId), 
-            checkValue: Number(checkValue) 
+           ruleId: ruleId ? Number(ruleId) : null, 
+            checkValue: checkValue ? Number(checkValue) : null 
         }
     });
 };
@@ -134,9 +142,8 @@ const grantBadge = async (userId, badgeCode, tx, shouldNotify = false) => {
         console.error(`[GAMIFICATION_ERROR] "${badgeCode}" nişanı birbaşa verilərkən xəta baş verdi:`, error);
     }
 };
-// === RULE IMPLEMENTATIONS ===
-// Bu obyekt, hər bir qaydanın necə yoxlanacağını təyin edir
 
+// === RULE IMPLEMENTATIONS ===
 const getAllBadgeRules = () => prisma.badgeRule.findMany();
 const createBadgeRule = (data) => prisma.badgeRule.create({ data });
 // === USER-FACING FUNCTIONS ===
@@ -154,6 +161,54 @@ const getBadgesForUser = async (userId) => {
     // Yalnız nişan məlumatlarını qaytarırıq
     return userBadges.map(ub => ub.badge);
 };
+const getProfileCompletion = async (userId) => {
+    // 1. İstifadəçinin bütün lazımi məlumatlarını bir sorğuda çəkirik
+    const userProfile = await prisma.profile.findUnique({
+        where: { userId },
+        include: {
+            photos: { select: { id: true } },
+            interests: { select: { id: true } },
+        }
+    });
+
+    if (!userProfile) {
+        const error = new Error('Profil tapılmadı.');
+        error.statusCode = 404;
+        throw error;
+    }
+
+    // 2. Qaydaları və onların "çəkisini" təyin edirik
+    const completionCriteria = {
+        hasAvatar: { weight: 20, satisfied: userProfile.photos.length > 0 },
+        hasBio: { weight: 20, satisfied: !!userProfile.bio && userProfile.bio.trim() !== "" },
+        hasThreeInterests: { weight: 20, satisfied: userProfile.interests.length >= 3 },
+        hasFourPhotos: { weight: 20, satisfied: userProfile.photos.length >= 4 },
+        isVerified: { weight: 20, satisfied: userProfile.isVerified },
+    };
+
+    // 3. Ümumi faizi və çatışmayan hissələri hesablayırıq
+    let totalPercentage = 0;
+    const missingParts = [];
+
+    for (const key in completionCriteria) {
+        if (completionCriteria[key].satisfied) {
+            totalPercentage += completionCriteria[key].weight;
+        } else {
+            missingParts.push(key); // Məs: ['hasBio', 'isVerified']
+        }
+    }
+    return {
+        percentage: totalPercentage,
+        missing: missingParts,
+        suggestions: {
+            hasAvatar: "Profilinə ilk şəklini əlavə et.",
+            hasBio: "Bio (Haqqında) bölməsini dolduraraq özünü tanıt.",
+            hasThreeInterests: "Ən azı 3 maraq sahəsi seç.",
+            hasFourPhotos: "Daha çox diqqət çəkmək üçün ən az 4 şəkil yüklə.",
+            isVerified: "Profilini təsdiqlədərək güvən qazan.",
+        }
+    };
+};
 module.exports = {
     checkAndGrantBadges,
     getAllBadges,
@@ -162,6 +217,6 @@ module.exports = {
     deleteBadge,
     getBadgesForUser,grantBadge,
     getAllBadgeRules,
-    createBadgeRule
+    createBadgeRule,getProfileCompletion
 
 };

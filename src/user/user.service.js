@@ -67,17 +67,16 @@ const reportUser = async (reporterId, reportedId, reason) => {
         throw new Error('İstifadəçi özünü şikayət edə bilməz.');
     }
 
-    // === YENİ RATE LIMITING MƏNTİQİ ===
-    // Son 24 saat üçün bir tarix obyekti yaradırıq
     const twentyFourHoursAgo = new Date(new Date() - 24 * 60 * 60 * 1000);
 
     // Bu istifadəçinin digərini son 24 saatda şikayət edib-etmədiyini yoxlayırıq
     const recentReport = await prisma.report.findFirst({
         where: {
             reporterId: reporterId,
-            reportedId: reportedId,
+            // DÜZƏLİŞ: 'reportedId' -> 'reportedUserId'
+            reportedUserId: reportedId, 
             createdAt: {
-                gte: twentyFourHoursAgo, // "greater than or equal to"
+                gte: twentyFourHoursAgo,
             },
         },
     });
@@ -89,13 +88,13 @@ const reportUser = async (reporterId, reportedId, reason) => {
         throw error;
     }
 
-    // Əgər limit keçilməyibsə, əvvəlki məntiqlə davam edirik
+    // ... funksiyanın qalan hissəsi dəyişməz qalır
     return prisma.$transaction(async (tx) => {
         // 1. Şikayət qeydini yaradırıq
         await tx.report.create({
             data: {
                 reporterId,
-                reportedId,
+                reportedUserId: reportedId, // DÜZƏLİŞ: Burada da adı düzəldirik
                 reason,
             },
         });

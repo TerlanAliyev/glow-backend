@@ -1,6 +1,9 @@
+const { Prisma } = require('@prisma/client'); // <-- BU SƏTRİ FAYLIN YUXARISINA ƏLAVƏ EDİN
 
 const prisma = require('../config/prisma');
 const gamificationService = require('../gamification/gamification.service');
+const { createAuditLog } = require('../admin/services/audit.service');
+const challengeService = require('../challenge/challenge.service'); // <-- YENİ İMPORT
 
 
 // Haversine formulası ilə məsafəni hesablamaq üçün funksiya
@@ -12,8 +15,8 @@ const getDistanceInMeters = (lat1, lon1, lat2, lon2) => {
     const Δλ = (lon2 - lon1) * Math.PI / 180;
 
     const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
-              Math.cos(φ1) * Math.cos(φ2) *
-              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+        Math.cos(φ1) * Math.cos(φ2) *
+        Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
     const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
     return R * c; // Nəticə metrlə
@@ -22,26 +25,29 @@ const MAX_DISTANCE_METERS = 200; // Maksimum icazə verilən məsafə (metrlə)
 
 
 const checkInUser = async (userId, latitude, longitude) => {
+    const userPoint = `point(${longitude}, ${latitude})`; // İstifadəçinin nöqtəsini bir string olaraq hazırlayırıq
+
     const nearbyVenues = await prisma.$queryRaw`
-        SELECT id, name, address
-        FROM "Venue"
-        WHERE ST_DWithin(
-            ST_MakePoint(longitude, latitude)::geography,
-            ST_MakePoint(${longitude}, ${latitude})::geography,
-            100
-        )
-        ORDER BY ST_Distance(
-            ST_MakePoint(longitude, latitude),
-            ST_MakePoint(${longitude}, ${latitude})
+        SELECT id, name, address, latitude, longitude
+        FROM \`Venue\`
+        WHERE ST_Distance_Sphere(
+            point(longitude, latitude),
+            ${Prisma.raw(userPoint)} 
+        ) <= 200 
+        ORDER BY ST_Distance_Sphere(
+            point(longitude, latitude),
+            ${Prisma.raw(userPoint)}
         )
         LIMIT 5;
     `;
+
 
     if (nearbyVenues.length === 0) {
         const error = new Error('Yaxınlıqda heç bir məkan tapılmadı.');
         error.statusCode = 404;
         throw error;
     }
+
 
     if (nearbyVenues.length === 1) {
         const venue = nearbyVenues[0];
@@ -67,6 +73,7 @@ const checkInUser = async (userId, latitude, longitude) => {
 
             // Nişan yoxlamasını tranzaksiya daxilində çağırırıq
             await gamificationService.checkAndGrantBadges(userId, 'NEW_CHECKIN', tx);
+           await  challengeService.verifyCheckInForChallenge(userId, venueId);
 
             return session; // Tranzaksiyadan nəticəni qaytarırıq
         });
@@ -78,8 +85,8 @@ const checkInUser = async (userId, latitude, longitude) => {
 };
 
 
-const finalizeCheckIn = async (userId, venueId,userLatitude, userLongitude) => {
- const venue = await prisma.venue.findUnique({ where: { id: venueId } });
+const finalizeCheckIn = async (userId, venueId, userLatitude, userLongitude) => {
+    const venue = await prisma.venue.findUnique({ where: { id: venueId } });
     if (!venue) {
         const error = new Error('Məkan tapılmadı.');
         error.statusCode = 404;
@@ -153,10 +160,10 @@ const setIncognitoStatus = async (userId, status) => {
 
     // 3. Sonra uğurlu əməliyyatı qeydə alırıq (loglayırıq)
     await createAuditLog(
-        userId, 
+        userId,
         status ? 'USER_ACTIVATED_INCOGNITO' : 'USER_DEACTIVATED_INCOGNITO',
         // DƏYİŞİKLİK: Artıq mövcud olan 'activeSession'-dan istifadə edirik
-        { venueId: activeSession.venueId } 
+        { venueId: activeSession.venueId }
     );
 
     // 4. Yenilənmiş sessiyanı geri qaytarırıq
@@ -232,5 +239,5 @@ module.exports = {
     checkInUser,
     seedDatabaseWithVenues,
     setIncognitoStatus,
-    finalizeCheckIn, getVenueStats, getLiveVenueStats,getDistanceInMeters
+    finalizeCheckIn, getVenueStats, getLiveVenueStats, getDistanceInMeters
 };
