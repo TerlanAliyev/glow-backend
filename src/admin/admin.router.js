@@ -138,9 +138,7 @@ router.get('/badges', adminOnly, getBadges);
 
 // === CHALLENGE TEMPLATE MANAGEMENT ===
 router.get('/challenge-templates', adminOnly, getChallengeTemplates);
-router.post('/challenge-templates', adminOnly, createChallengeTemplate);
-router.patch('/challenge-templates/:id', adminOnly, updateChallengeTemplate);
+router.post('/challenge-templates', adminOnly, upload.single('file'), createChallengeTemplate);
+router.patch('/challenge-templates/:id', adminOnly, upload.single('file'), updateChallengeTemplate);
 router.delete('/challenge-templates/:id', adminOnly, deleteChallengeTemplate);
-
-
 module.exports = router;

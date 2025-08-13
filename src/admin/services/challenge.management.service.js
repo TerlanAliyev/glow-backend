@@ -8,16 +8,45 @@ const getAllTemplates = (queryParams) => {
 };
 
 const createTemplate = (data) => {
-    const { name, description, iconUrl, isActive } = data;
+    console.log('=== SERVICE CREATE TEMPLATE DEBUG ===');
+    console.log('Received data:', data);
+    
+    const templateData = {
+        name: data.name,
+        description: data.description,
+        isActive: Boolean(data.isActive === 'true' || data.isActive === true)
+    };
+    
+    if (data.iconUrl) {
+        templateData.iconUrl = data.iconUrl;
+    }
+    
+    console.log('Final template data for Prisma:', templateData);
+    
     return prisma.challengeTemplate.create({
-        data: { name, description, iconUrl, isActive }
+        data: templateData
     });
 };
 
 const updateTemplate = (templateId, data) => {
+    console.log('=== SERVICE UPDATE TEMPLATE DEBUG ===');
+    console.log('Template ID:', templateId);
+    console.log('Update data:', data);
+    
+    const templateData = {};
+    
+    if (data.name) templateData.name = data.name;
+    if (data.description) templateData.description = data.description;
+    if (data.hasOwnProperty('isActive')) {
+        templateData.isActive = Boolean(data.isActive === 'true' || data.isActive === true);
+    }
+    if (data.iconUrl) templateData.iconUrl = data.iconUrl;
+    
+    console.log('Final update data for Prisma:', templateData);
+    
     return prisma.challengeTemplate.update({
         where: { id: Number(templateId) },
-        data: data
+        data: templateData
     });
 };
 

@@ -1322,10 +1322,11 @@ const options = {
           tags: ['Challenge System'],
           summary: 'Başqa bir istifadəçiyə yeni bir "Görüş Təklifi" göndərir',
           security: [{ bearerAuth: [] }],
+          // --- DÜZƏLİŞ BURADADIR ---
           requestBody: {
             required: true,
             content: {
-              'application/json': {
+              'application/json': { // Tip 'multipart/form-data' deyil, 'application/json' olmalıdır
                 schema: {
                   type: 'object',
                   properties: {
@@ -1340,6 +1341,7 @@ const options = {
               }
             }
           },
+          // --- DÜZƏLİŞ BİTDİ ---
           responses: {
             '201': { description: 'Təklif uğurla yaradıldı və göndərildi' },
             '401': { description: 'Avtorizasiya xətası' }

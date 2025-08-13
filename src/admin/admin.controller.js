@@ -378,15 +378,59 @@ const getChallengeTemplates = asyncHandler(async (req, res) => {
     res.status(200).json(templates);
 });
 
+// admin.controller.js dosyasına:
 const createChallengeTemplate = asyncHandler(async (req, res) => {
-    const newTemplate = await challengeManagementService.createTemplate(req.body);
-    res.status(201).json(newTemplate);
+    console.log('=== CREATE CHALLENGE TEMPLATE DEBUG ===');
+    console.log('req.body:', req.body);
+    console.log('req.file:', req.file);
+    
+    const data = req.body;
+    
+    if (req.file) {
+        console.log('File found, setting iconUrl to:', req.file.path);
+        data.iconUrl = req.file.path;
+    } else {
+        console.log('No file found in request');
+    }
+    
+    console.log('Final data to be sent to service:', data);
+    
+    try {
+        const newTemplate = await challengeManagementService.createTemplate(data);
+        console.log('Template created successfully:', newTemplate);
+        res.status(201).json(newTemplate);
+    } catch (error) {
+        console.log('Error creating template:', error);
+        throw error;
+    }
 });
 
 const updateChallengeTemplate = asyncHandler(async (req, res) => {
+    console.log('=== UPDATE CHALLENGE TEMPLATE DEBUG ===');
+    console.log('req.params.id:', req.params.id);
+    console.log('req.body:', req.body);
+    console.log('req.file:', req.file);
+    
     const { id } = req.params;
-    const updatedTemplate = await challengeManagementService.updateTemplate(id, req.body);
-    res.status(200).json(updatedTemplate);
+    const data = req.body;
+    
+    if (req.file) {
+        console.log('File found for update, setting iconUrl to:', req.file.path);
+        data.iconUrl = req.file.path;
+    } else {
+        console.log('No file found in update request');
+    }
+    
+    console.log('Final update data:', data);
+    
+    try {
+        const updatedTemplate = await challengeManagementService.updateTemplate(id, data);
+        console.log('Template updated successfully:', updatedTemplate);
+        res.status(200).json(updatedTemplate);
+    } catch (error) {
+        console.log('Error updating template:', error);
+        throw error;
+    }
 });
 
 const deleteChallengeTemplate = asyncHandler(async (req, res) => {
