@@ -1,6 +1,7 @@
 // Fayl: src/socket/handlers/groupChat.handler.js
 
 const chatService = require('../../chat/chat.service');
+const prisma = require('../../config/prisma');
 
 // Qadağan olunmuş sözlər və onlardan yaradılmış RegEx
 const forbiddenWords = ['sik', 'sikdir', 'amciq'].filter(word => word.trim() !== '');

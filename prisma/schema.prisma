@@ -401,16 +401,12 @@ model EmailChangeToken {
 model RefreshToken {
   id        Int      @id @default(autoincrement())
   
-  // DƏYİŞİKLİK 1: Sahənin üzərindən @unique atributunu silirik
-  token     String   @db.Text 
-
+token String @db.VarChar(512) @unique
   expiresAt DateTime
   user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
   userId    String
   createdAt DateTime @default(now())
 
-  // DƏYİŞİKLİK 2: Unikallığı burada, indeks olaraq təyin edirik
-  @@unique([token(length: 255)])
 }
 
 model GroupMessageReaction {

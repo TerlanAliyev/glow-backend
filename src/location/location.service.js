@@ -83,7 +83,7 @@ const checkInUser = async (userId, latitude, longitude) => {
 
             // Nişan yoxlamasını tranzaksiya daxilində çağırırıq
             await gamificationService.checkAndGrantBadges(userId, 'NEW_CHECKIN', tx);
-           await  challengeService.verifyCheckInForChallenge(userId, venueId);
+    await challengeService.verifyCheckInForChallenge(userId, venue.id); // <--- DÜZƏLİŞ
 
             return session; // Tranzaksiyadan nəticəni qaytarırıq
         });

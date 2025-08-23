@@ -1,34 +1,63 @@
 
 const prisma = require('../config/prisma');
+const { redisClient } = require('../config/redis');
 
-const getMessagesForConnection = async (userId, connectionId,{ page = 1, limit = 30 }) => {
-    // 1. İstifadəçinin bu söhbətə aid olub-olmadığını yoxlayırıq (təhlükəsizlik)
+// Fayl: src/chat/chat.service.js
+
+const redis = require('../config/redis');
+
+
+
+const getMessagesForConnection = async (userId, connectionId, { page = 1, limit = 30 }) => {
+    // 1. Təhlükəsizlik yoxlaması
     const connection = await prisma.connection.findFirst({
-        where: {
-            id: connectionId,
-            OR: [
-                { userAId: userId },
-                { userBId: userId }
-            ]
-        }
+        where: { id: connectionId, OR: [{ userAId: userId }, { userBId: userId }] }
     });
-    
-    if (!connection) {
-        throw new Error('Bu söhbətə baxmaq üçün icazəniz yoxdur.');
+    if (!connection) throw new Error('Bu söhbətə baxmaq üçün icazəniz yoxdur.');
+
+    const cacheKey = `chat_history:${connectionId}:page:${page}:limit:${limit}`;
+    const cacheTTL = 300; // 5 dəqiqə
+
+    // 2. Keşdə axtarış
+    try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+            console.log(`[CACHE HIT] ✅ Söhbət tarixçəsi keşdən tapıldı: ${cacheKey}`);
+            return JSON.parse(cachedData);
+        }
+    } catch (error) {
+        console.error("Redis-dən oxuma xətası:", error);
     }
-    
+
+    console.log(`[CACHE MISS] ❌ Söhbət tarixçəsi keşdə tapılmadı. Verilənlər bazasından alınır...`);
+
+    // 3. Verilənlər bazasına sorğu
     const skip = (page - 1) * limit;
-     const [messages, total] = await prisma.$transaction([
+    const [messages, total] = await prisma.$transaction([
         prisma.message.findMany({
             where: { connectionId },
-            orderBy: { createdAt: 'desc' }, // Tarixçəni sondan əvvələ yükləmək daha məntiqlidir
+            orderBy: { createdAt: 'desc' },
             skip,
             take: limit,
-            include: { sender: { include: { profile: true } } }
+            include: { sender: { include: { profile: { select: { name: true } } } } } // Yalnız ad məlumatını çəkirik
         }),
         prisma.message.count({ where: { connectionId } })
     ]);
-    return { data: messages.reverse(), totalPages: Math.ceil(total / limit), currentPage: page };
+
+    const result = {
+        data: messages.reverse(),
+        totalPages: Math.ceil(total / limit),
+        currentPage: page
+    };
+
+    // 4. Nəticəni Redis-ə yazırıq
+    try {
+        await redis.set(cacheKey, JSON.stringify(result), 'EX', cacheTTL);
+    } catch (error) {
+        console.error("Redis-ə yazma xətası:", error);
+    }
+
+    return result;
 };
 
 const reportMessage = async (reporterId, messageId, reason) => {
@@ -115,6 +144,7 @@ const deleteOwnMessage = async (userId, messageId) => {
 
     return { message: 'Mesaj uğurla silindi.' };
 };
+
 const createMessage = async (senderId, connectionId, data) => {
     // Gələn məlumatları bir obyektdən çıxarırıq
     const { content, imageUrl, audioUrl } = data;
@@ -122,6 +152,16 @@ const createMessage = async (senderId, connectionId, data) => {
     // Yoxlama: Məlumatlardan ən azı biri mövcud olmalıdır
     if (!content && !imageUrl && !audioUrl) {
         throw new Error("Mesajın mətni, şəkli və ya səsi olmalıdır.");
+    }
+    
+    // YENİ ƏLAVƏ OLUNMUŞ BLOK
+    // Yeni mesaj yaradılmadan əvvəl mövcud keşlər silinir.
+    // Bu, mesaj göndərilərkən bir az gecikmə yarada bilər,
+    // lakin keşin hər zaman ən son məlumatı əks etdirməsini təmin edir.
+    const connectionCacheKeys = await redis.keys(`chat_history:${connectionId}:*`);
+    if (connectionCacheKeys.length > 0) {
+        await redis.del(connectionCacheKeys).catch(err => console.error(err));
+        console.log(`[CACHE INVALIDATION] Chat ${connectionId} üçün keş təmizləndi.`);
     }
 
     return prisma.message.create({
@@ -197,5 +237,5 @@ module.exports = {
     getMessagesForConnection,
     reportMessage,
     getRandomIcebreakers,
-    getGroupMessagesForVenue,deleteOwnMessage,createMessage,createGroupMessage,reportGroupMessage,addOrUpdateGroupReaction
+    getGroupMessagesForVenue, deleteOwnMessage, createMessage, createGroupMessage, reportGroupMessage, addOrUpdateGroupReaction
 };

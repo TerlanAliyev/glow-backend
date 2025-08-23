@@ -40,15 +40,16 @@ const loginUser = asyncHandler(async (req, res) => {
         refreshToken 
     });
 });
-const refreshToken = asyncHandler(async (req, res) => {
-    const errors = validationResult(req);
-    if (!errors.isEmpty()) {
-        return res.status(400).json({ errors: errors.array() });
-    }
-    const { refreshToken } = req.body;
-    const { newAccessToken } = await authService.refreshAccessToken(refreshToken);
-    res.status(200).json({ accessToken: newAccessToken });
-});
+const refreshToken = async (req, res, next) => {
+  const { refreshToken } = req.body;
+  try {
+    const tokens = await authService.refreshAccessToken(refreshToken);
+    // burda console var amma res.json(tokens) yoxdur
+    res.json(tokens);
+  } catch (err) {
+    next(err);
+  }
+};
 
 const getMyProfile = asyncHandler(async (req, res) => {
     const userId = req.user.userId;

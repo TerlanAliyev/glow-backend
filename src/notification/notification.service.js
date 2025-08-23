@@ -1,5 +1,6 @@
 const admin = require('firebase-admin');
 const prisma = require('../config/prisma');
+const redis = require('../config/redis');
 
 // Firebase Admin SDK başlatma
 try {
@@ -106,6 +107,23 @@ const createAndSendNotification = async (userId, type, content, data = {}) => {
 // İstifadəçi üçün bildirişləri gətirir (dəyişməz qalıb)
 const getNotificationsForUser = async (userId, page = 1, limit = 20) => {
     const skip = (page - 1) * limit;
+    const cacheKey = `notifications:user:${userId}:page:${page}:limit:${limit}`;
+    const cacheTTL = 600; // 10 dəqiqə
+
+    // 1. Əvvəlcə Redis keşdə məlumatı axtarırıq
+    try {
+        const cachedData = await redis.get(cacheKey);
+        if (cachedData) {
+            console.log(`[CACHE HIT] ✅ İstifadəçi (${userId}) bildirişləri keşdən tapıldı.`);
+            return JSON.parse(cachedData);
+        }
+    } catch (error) {
+        console.error("Redis-dən oxuma xətası:", error);
+    }
+
+    console.log(`[CACHE MISS] ❌ İstifadəçi (${userId}) bildirişləri keşdə tapılmadı. Databazadan axtarılır...`);
+    
+    // 2. Keşdə yoxdursa, verilənlər bazasından məlumatları çəkirik
     const [notifications, total] = await prisma.$transaction([
         prisma.notification.findMany({
             where: { userId },
@@ -115,14 +133,22 @@ const getNotificationsForUser = async (userId, page = 1, limit = 20) => {
         }),
         prisma.notification.count({ where: { userId } })
     ]);
-    return {
+
+    const result = {
         data: notifications,
         totalPages: Math.ceil(total / limit),
         currentPage: page
     };
+
+    try {
+        await redis.set(cacheKey, JSON.stringify(result), 'EX', cacheTTL);
+    } catch (error) {
+        console.error("Redis-ə yazma xətası:", error);
+    }
+
+    return result;
 };
 
-// Bildirişi "oxunmuş" kimi işarələyir (dəyişməz qalıb)
 const markAsRead = async (userId, notificationId) => {
   const notification = await prisma.notification.findFirst({
     where: {

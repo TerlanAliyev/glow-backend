@@ -157,23 +157,36 @@ const loginWithGoogle = async (idToken) => {
     return { user, accessToken, refreshToken, message };
 };
 const refreshAccessToken = async (oldRefreshToken) => {
-    const dbToken = await prisma.refreshToken.findUnique({ where: { token: oldRefreshToken } });
+    // 1. Verilənlər bazasında tokeni tapırıq
+    const dbToken = await prisma.refreshToken.findFirst({
+        where: { token: oldRefreshToken }
+    });
+    console.log("🔎 DB-dən tapılan refresh token:", dbToken);
+    console.log("JWT SECRET:", process.env.JWT_SECRET);
+    console.log("REFRESH TOKEN SECRET:", process.env.REFRESH_TOKEN_SECRET);
 
+    // 2. Əgər token yoxdursa və ya vaxtı bitibsə, xəta atırıq.
     if (!dbToken || dbToken.expiresAt < new Date()) {
         throw new Error('Refresh token etibarlı deyil və ya vaxtı bitib.');
     }
 
-    const payload = jwt.verify(oldRefreshToken, process.env.REFRESH_TOKEN_SECRET);
+    // 3. Tokenin etibarlılığını yoxlayırıq try-catch ilə
+    let payload;
+    try {
+        payload = jwt.verify(oldRefreshToken, process.env.REFRESH_TOKEN_SECRET);
+        console.log("✅ JWT payload:", payload);
+    } catch (err) {
+        console.error("❌ JWT verify xətası:", err.message);
+        throw new Error('Refresh token etibarlı deyil və ya vaxtı bitib.');
+    }
 
-    // Yeni access ve refresh tokenleri oluştur
+    // 4. Yeni access və refresh tokenləri yaradırıq. generateAndStoreTokens köhnə tokeni avtomatik silir.
     const { accessToken, refreshToken: newRefreshToken } = await generateAndStoreTokens(payload.userId);
 
-    // Eski refresh token'i veritabanından sil
-    await prisma.refreshToken.delete({ where: { token: oldRefreshToken } });
-
-    // Yeni tokenleri döndür
+    // 5. Yeni tokenləri qaytarırıq.
     return { accessToken, refreshToken: newRefreshToken };
 };
+
 
 const getUserProfileById = async (userId) => {
     const cacheKey = `user_profile:${userId}`;

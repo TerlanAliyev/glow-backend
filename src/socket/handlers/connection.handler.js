@@ -29,7 +29,7 @@ const registerConnectionHandlers = (mainNamespace, socket) => {
             if (isBlocked) {
                 return socket.emit('error', { message: 'Bu istifadəçi sizi bloklayıb.', errorCode: 'USER_BLOCKED' });
             }
-            
+
 
             if (!sender || !sender.profile) {
                 return socket.emit('error', { message: 'İstifadəçi tapılmadı.' });
@@ -56,20 +56,32 @@ const registerConnectionHandlers = (mainNamespace, socket) => {
 
             // ADDIM 2: Pulsuz istifadəçilər üçün siqnal limitini yoxlayaq
             if (sender.subscription === 'FREE') {
-                const twentyFourHoursAgo = new Date(new Date() - 24 * 60 * 60 * 1000);
                 const DAILY_LIMIT = 15; // Gündəlik limiti burada təyin edirik
+                const redisKey = `signals_sent_daily:${senderId}`;
 
-                const signalCount = await prisma.signal.count({
-                    where: { senderId: senderId, createdAt: { gte: twentyFourHoursAgo } },
-                });
+                // Redis-dən sayğacı atomik olaraq artırırıq
+                const signalCount = await redis.incr(redisKey);
 
-                if (signalCount >= DAILY_LIMIT) {
+                // Əgər sayğacın ömrü (TTL) yoxdursa, onu günün sonuna qədər təyin edirik.
+                // Bu, istifadəçinin gündəlik sayğacının hər gecə yenilənməsini təmin edir.
+                if (signalCount === 1) {
+                    const now = new Date();
+                    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+                    const ttlInSeconds = Math.floor((endOfDay.getTime() - now.getTime()) / 1000);
+                    await redis.expire(redisKey, ttlInSeconds);
+                }
+
+                // Limitsiz siqnal göndərmək üçün yoxlama
+                if (signalCount > DAILY_LIMIT) {
                     if (sender.profile.extraSignalCredits > 0) {
+                        // Əgər əlavə kredit varsa, onu istifadə edirik
                         await prisma.profile.update({
                             where: { userId: senderId },
                             data: { extraSignalCredits: { decrement: 1 } }
                         });
+                        // Burada sayğacın artıq limitdən yuxarı olduğu üçün Redis-i yenidən yoxlamağa ehtiyac yoxdur.
                     } else {
+                        // Əlavə kredit yoxdursa, xəta qaytarırıq
                         return socket.emit('error', {
                             message: `Gündəlik limitiniz bitib. Video izləyərək yeni kreditlər qazana bilərsiniz.`,
                             errorCode: 'SIGNAL_LIMIT_REACHED'

@@ -1,5 +1,3 @@
-// Fayl: src/socket/socket.handler.js
-
 const jwt = require('jsonwebtoken');
 const prisma = require('../config/prisma');
 
