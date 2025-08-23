@@ -29,6 +29,7 @@ const { sendReEngagementNotifications, calculateVenueStatistics } = require('./s
 const gamificationRouter = require('./src/gamification/gamification.router');
 const challengeRouter = require('./src/challenge/challenge.router');
 const { initializeScheduledJobs } = require('./src/scheduler/scheduler'); // <-- YENİ İMPORT
+const optionsRouter = require('./src/options/options.router');
 
 const app = express();
 const server = http.createServer(app);
@@ -67,6 +68,7 @@ app.use('/api/purchase', purchaseRouter);
 app.use('/api/rewards', rewardsRouter);
 app.use('/api', gamificationRouter); // və ya '/api/gamification'
 app.use('/api', challengeRouter);
+app.use('/api', optionsRouter);
 
 
 app.get('/', (req, res) => {

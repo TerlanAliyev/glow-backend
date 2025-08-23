@@ -31,7 +31,7 @@ const generateAndStoreTokens = async (userId) => {
 };
 
 const registerNewUser = async (userData) => {
-    const { email, password, name, age, gender } = userData;
+    const { email, password, name, age, gender, sexualOrientationId, relationshipGoalId } = userData;
     const hashedPassword = await bcrypt.hash(password, 10);
 
     const threeDaysFromNow = new Date();
@@ -42,7 +42,12 @@ const registerNewUser = async (userData) => {
             email,
             password: hashedPassword,
             premiumExpiresAt: threeDaysFromNow,
-            profile: { create: { name, age, gender } },
+            profile: {
+                create: {
+                    name, age, gender, sexualOrientationId: sexualOrientationId ? Number(sexualOrientationId) : undefined,
+                    relationshipGoalId: relationshipGoalId ? Number(relationshipGoalId) : undefined,
+                }
+            },
         },
         include: { profile: true },
     });
@@ -181,21 +186,21 @@ const getUserProfileById = async (userId) => {
     const user = await prisma.user.findUnique({
         where: { id: userId },
         include: {
-          profile: { include: { photos: true, interests: true } },
-          role: true,
-           badges: { // YENİ BLOK
-              include: {
-                  badge: true
-              }
-          }
+            profile: { include: { photos: true, interests: true } },
+            role: true,
+            badges: { // YENİ BLOK
+                include: {
+                    badge: true
+                }
+            }
         },
     });
-    
+
     if (!user) throw new Error('Bu ID ilə istifadəçi tapılmadı.');
     delete user.password;
 
     try {
-        await redis.set(cacheKey, JSON.stringify(user), 'EX', 3600); 
+        await redis.set(cacheKey, JSON.stringify(user), 'EX', 3600);
     } catch (error) {
         console.error("Redis-ə yazma xətası:", error);
     }

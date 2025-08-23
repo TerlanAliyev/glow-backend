@@ -204,6 +204,51 @@ const options = {
           }
         }
       },
+      '/api/options': {
+        get: {
+          tags: ['Options'],
+          summary: 'Qeydiyyat və profil üçün bütün dinamik seçimləri gətirir',
+          description: "Bu endpoint, cinsi yönəlim və ilişki hədəfi kimi seçimlərin siyahısını qaytarır ki, frontend tərəfi formaları dinamik şəkildə doldura bilsin. Autentifikasiya tələb etmir.",
+          responses: {
+            '200': {
+              description: 'Seçimlər uğurla qaytarıldı',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      SEXUAL_ORIENTATION: {
+                        type: 'array',
+                        items: {
+                          type: 'object',
+                          properties: {
+                            id: { type: 'integer' },
+                            code: { type: 'string' },
+                            name: { type: 'string' }
+                          }
+                        },
+                        example: [{ "id": 1, "code": "HETEROSEXUAL", "name": "Heteroseksual" }]
+                      },
+                      RELATIONSHIP_GOAL: {
+                        type: 'array',
+                        items: {
+                          type: 'object',
+                          properties: {
+                            id: { type: 'integer' },
+                            code: { type: 'string' },
+                            name: { type: 'string' }
+                          }
+                        },
+                        example: [{ "id": 9, "code": "RELATIONSHIP", "name": "Ciddi Münasibət" }]
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       // Profile Paths
       '/api/profile/me': {
         patch: {
@@ -2187,7 +2232,14 @@ const options = {
             password: { type: 'string', example: 'password123' },
             name: { type: 'string', example: 'Test User' },
             age: { type: 'integer', example: 25 },
-            gender: { type: 'string', example: 'MALE' },
+            gender: { type: 'string', enum: ['MALE', 'FEMALE', 'OTHER'], example: 'MALE' },
+            // YENİ SAHƏ
+            sexualOrientation: {
+              type: 'string',
+              description: 'İstifadəçinin cinsi yönəlimi (opsional)',
+              enum: ['HETEROSEXUAL', 'GAY', 'LESBIAN', 'BISEXUAL', 'ASEXUAL', 'PANSEXUAL', 'QUEER', 'OTHER'],
+              example: 'HETEROSEXUAL'
+            }
           }
         },
         LoginUserInput: {

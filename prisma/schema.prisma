@@ -57,7 +57,20 @@ enum ChallengeInstanceStatus {
   COMPLETED // Uğurla tamamlanıb
   EXPIRED   // Vaxtı keçib
 }
+enum OptionType {
+  SEXUAL_ORIENTATION
+  RELATIONSHIP_GOAL
+}
+model ProfileOption {
+  id    Int        @id @default(autoincrement())
+  type  OptionType // Bu seçimin hansı qrupa aid olduğunu göstərir
+  code  String     @unique // Məs: HETEROSEXUAL, RELATIONSHIP
+  name  String     // Frontend-də görünəcək ad, Məs: "Heteroseksual"
 
+  // Bu seçimi istifadə edən profillərlə əlaqələr
+  profilesByOrientation Profile[] @relation("ProfileToSexualOrientation")
+  profilesByGoal      Profile[] @relation("ProfileToRelationshipGoal")
+}
 model User {
   id              String          @id @default(uuid())
   email           String          @unique
@@ -135,7 +148,11 @@ model Profile {
   provisionalSignalsUsed Int                  @default(0)
   currentStatus        String?
   statusExpiresAt      DateTime?
+sexualOrientation   ProfileOption? @relation("ProfileToSexualOrientation", fields: [sexualOrientationId], references: [id])
+  sexualOrientationId Int?
 
+  relationshipGoal      ProfileOption? @relation("ProfileToRelationshipGoal", fields: [relationshipGoalId], references: [id])
+  relationshipGoalId    Int?
 }
 
 model Category {
