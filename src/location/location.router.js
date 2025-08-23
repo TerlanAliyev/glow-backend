@@ -1,6 +1,6 @@
 
 const express = require('express');
-const { checkIn, seedVenues,setIncognito,finalizeCheckIn,getVenueStats,getLiveVenueStats  } = require('./location.controller');
+const { checkIn,setIncognito,finalizeCheckIn,getVenueStats,getLiveVenueStats  } = require('./location.controller');
 const { authenticateToken } = require('../middleware/auth.middleware');
 const { body } = require('express-validator');
 const { isPremium } = require('../middleware/premium.middleware');
@@ -19,7 +19,6 @@ router.post(
 );
 
 // POST /api/location/seed - Test üçün databazaya məkanları əlavə edir
-router.post('/seed', seedVenues);
 router.patch('/incognito', authenticateToken, setIncognito);
 router.post(
     '/check-in/finalize',

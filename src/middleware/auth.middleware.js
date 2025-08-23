@@ -6,7 +6,7 @@ const authenticateToken = (req, res, next) => {
   if (token == null) {
     return res.status(401).json({ message: 'Token təqdim edilməyib.' });
   }
-  jwt.verify(token, process.env.JWT_SECRET || 'super_gizli_bir_acar_stringi', (err, userPayload) => {
+  jwt.verify(token, process.env.JWT_SECRET, (err, userPayload) => {
     if (err) {
       return res.status(403).json({ message: 'Token etibarlı deyil.' });
     }

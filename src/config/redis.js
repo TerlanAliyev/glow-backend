@@ -3,8 +3,8 @@ const Redis = require('ioredis');
 
 // Bu, Redis serverimizə qoşulmaq üçün istifadə edəcəyimiz obyektdir.
 const redis = new Redis({
-    port: 6379, // Standart Redis portu
-    host: '127.0.0.1', // Lokal kompüter
+    port: process.env.REDIS_PORT || 6379,
+    host: process.env.REDIS_HOST || '127.0.0.1',
 });
 
 redis.on('connect', () => {

@@ -61,6 +61,68 @@ const options = {
           }
         }
       },
+      '/api/auth/refresh-token': {
+        post: {
+          tags: ['Auth'],
+          summary: 'Access token-i yeniləyir',
+          description: "Mövcud refresh token-i istifadə edərək yeni bir access token alır.",
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  $ref: '#/components/schemas/RefreshTokenInput'
+                }
+              }
+            }
+          },
+          responses: {
+            '200': {
+              description: 'Token uğurla yeniləndi',
+              content: {
+                'application/json': {
+                  schema: {
+                    type: 'object',
+                    properties: {
+                      accessToken: {
+                        type: 'string',
+                        description: 'Yeni yaradılmış access token',
+                        example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...'
+                      }
+                    }
+                  }
+                }
+              }
+            },
+            '400': {
+              description: 'Yanlış sorğu. Refresh token təqdim edilməyib.',
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/ErrorResponse'
+                  },
+                  example: {
+                    errors: [{ msg: 'Refresh token təqdim edilməlidir.' }]
+                  }
+                }
+              }
+            },
+            '401': {
+              description: 'Etibarsız və ya vaxtı bitmiş refresh token.',
+              content: {
+                'application/json': {
+                  schema: {
+                    $ref: '#/components/schemas/ErrorResponse'
+                  },
+                  example: {
+                    message: "Refresh token etibarlı deyil və ya vaxtı bitib."
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       '/api/auth/logout': {
         post: {
           tags: ['Auth'],
@@ -2215,150 +2277,150 @@ const options = {
         }
       },
     },
-    components: {
-      securitySchemes: {
-        bearerAuth: {
-          type: 'http',
-          scheme: 'bearer',
-          bearerFormat: 'JWT',
+   components: {
+  schemas: {
+    // === AUTH ===
+    RegisterUserInput: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', format: 'email', example: 'user@example.com' },
+        password: { type: 'string', minLength: 6, example: 'mypassword' },
+        name: { type: 'string', example: 'John Doe' },
+        age: { type: 'integer', example: 25 },
+        gender: { type: 'string', example: 'male' }
+      },
+      required: ['email', 'password', 'name', 'age', 'gender']
+    },
+    LoginUserInput: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', format: 'email', example: 'user@example.com' },
+        password: { type: 'string', example: 'mypassword' }
+      },
+      required: ['email', 'password']
+    },
+    RefreshTokenInput: {
+      type: 'object',
+      properties: {
+        refreshToken: { type: 'string', example: 'sample_refresh_token' }
+      },
+      required: ['refreshToken']
+    },
+    GoogleLoginInput: {
+      type: 'object',
+      properties: {
+        idToken: { type: 'string', description: 'Google ID Token', example: 'ya29.a0AfH6...' }
+      },
+      required: ['idToken']
+    },
+    ForgotPasswordInput: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', format: 'email', example: 'user@example.com' }
+      },
+      required: ['email']
+    },
+    VerifyOtpInput: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', format: 'email', example: 'user@example.com' },
+        otp: { type: 'string', example: '123456' }
+      },
+      required: ['email', 'otp']
+    },
+    ResetPasswordInput: {
+      type: 'object',
+      properties: {
+        email: { type: 'string', format: 'email' },
+        otp: { type: 'string', example: '123456' },
+        newPassword: { type: 'string', example: 'newStrongPassword' }
+      },
+      required: ['email', 'otp', 'newPassword']
+    },
+
+    // === PROFILE ===
+    UpdateProfileInput: {
+      type: 'object',
+      properties: {
+        name: { type: 'string', example: 'John Doe' },
+        age: { type: 'integer', example: 25 },
+        gender: { type: 'string', example: 'male' },
+        bio: { type: 'string', example: 'Hello, I love music' },
+        university: { type: 'string', example: 'Baku State University' },
+        city: { type: 'string', example: 'Baku' },
+        personality: { $ref: '#/components/schemas/PersonalityType' }
+      }
+    },
+
+    // === CHAT ===
+    Message: {
+      type: 'object',
+      properties: {
+        id: { type: 'integer' },
+        content: { type: 'string' },
+        imageUrl: { type: 'string' },
+        audioUrl: { type: 'string' },
+        createdAt: { type: 'string', format: 'date-time' },
+        senderId: { type: 'string', format: 'uuid' },
+        connectionId: { type: 'integer' },
+        isRead: { type: 'boolean' }
+      }
+    },
+    ReportUserInput: {
+      type: 'object',
+      properties: {
+        reason: { type: 'string', example: 'Təhqiramiz məzmun' }
+      },
+      required: ['reason']
+    },
+
+    // === NOTIFICATION ===
+    RegisterDeviceInput: {
+      type: 'object',
+      properties: {
+        token: { type: 'string', example: 'device_fcm_token' }
+      },
+      required: ['token']
+    },
+
+    // === ERROR ===
+    ErrorResponse: {
+      type: 'object',
+      properties: {
+        message: { type: 'string' },
+        errors: {
+          type: 'array',
+          items: {
+            type: 'object',
+            properties: { msg: { type: 'string' } }
+          }
         }
       },
-      schemas: {
-        RegisterUserInput: {
-          type: 'object',
-          required: ['email', 'password', 'name', 'age', 'gender'],
-          properties: {
-            email: { type: 'string', example: 'user@example.com' },
-            password: { type: 'string', example: 'password123' },
-            name: { type: 'string', example: 'Test User' },
-            age: { type: 'integer', example: 25 },
-            gender: { type: 'string', enum: ['MALE', 'FEMALE', 'OTHER'], example: 'MALE' },
-            // YENİ SAHƏ
-            sexualOrientation: {
-              type: 'string',
-              description: 'İstifadəçinin cinsi yönəlimi (opsional)',
-              enum: ['HETEROSEXUAL', 'GAY', 'LESBIAN', 'BISEXUAL', 'ASEXUAL', 'PANSEXUAL', 'QUEER', 'OTHER'],
-              example: 'HETEROSEXUAL'
-            }
-          }
-        },
-        LoginUserInput: {
-          type: 'object',
-          required: ['email', 'password'],
-          properties: {
-            email: { type: 'string', example: 'user@example.com' },
-            password: { type: 'string', example: 'password123' },
-          }
-        },
-        GoogleLoginInput: {
-          type: 'object',
-          required: ['token'],
-          properties: {
-            token: {
-              type: 'string',
-              description: 'Mobil tətbiqin Google SDK-dan aldığı ID Token',
-              example: 'eyJhbGciOiJSUzI1NiIsImtpZCI6IjEyMzQ1Njc4OTAifQ...'
-            }
-          }
-        },
-        UpdateProfileInput: {
-          type: 'object',
-          properties: {
-            bio: { type: 'string', example: 'Yeni bio mətni' },
-            interestIds: { type: 'array', items: { type: 'integer' }, example: [1, 5] },
-          }
-        },
-        ErrorResponse: {
-          type: 'object',
-          properties: {
-            message: { type: 'string' }
-          }
-        },
-        Message: {
-          type: 'object',
-          properties: {
-            id: { type: 'integer' },
-            content: { type: 'string' },
-            createdAt: { type: 'string', format: 'date-time' },
-            senderId: { type: 'string' },
-            connectionId: { type: 'integer' },
-            sender: {
-              type: 'object',
-              properties: {
-                profile: {
-                  type: 'object',
-                  properties: {
-                    name: { type: 'string' },
-                    avatarUrl: { type: 'string' }
-                  }
-                }
-              }
-            }
-          }
-        },
-        RegisterDeviceInput: {
-          type: 'object',
-          required: ['token'],
-          properties: {
-            token: {
-              type: 'string',
-              description: 'Firebase Cloud Messaging (FCM) tərəfindən verilən unikal cihaz tokeni',
-              example: 'bk3RNwTe3H0:CI2k_HHwgIpoDKCIZvvDMExUdFQ3P1...'
-            }
-          }
-        },
-        Notification: {
-          type: 'object',
-          properties: {
-            id: { type: 'integer' },
-            type: { type: 'string', example: 'NEW_CONNECTION' },
-            content: { type: 'string', example: 'Yeni Bağlantı! Xəyal ilə yeni bir bağlantı qurdunuz!' },
-            isRead: { type: 'boolean' },
-            createdAt: { type: 'string', format: 'date-time' },
-            userId: { type: 'string', format: 'uuid' }
-          }
-        },
-        ReportUserInput: {
-          type: 'object',
-          required: ['reason'],
-          properties: {
-            reason: {
-              type: 'string',
-              description: 'Şikayətin səbəbi (məsələn, "Spam", "Təhqir")',
-              example: 'Spam profil'
-            }
-          }
-        },
-        DashboardStats: {
-          type: 'object',
-          properties: {
-            totalUsers: { type: 'integer', example: 150 },
-            newUsersToday: { type: 'integer', example: 5 },
-            activeSessions: { type: 'integer', example: 25 },
-            totalConnections: { type: 'integer', example: 45 },
-            pendingReports: { type: 'integer', example: 3 },
-          }
-        }, ForgotPasswordInput: {
-          type: 'object',
-          properties: { email: { type: 'string', example: 'user@example.com' } }
-        },
-        VerifyOtpInput: {
-          type: 'object',
-          properties: {
-            email: { type: 'string', example: 'user@example.com' },
-            token: { type: 'string', example: '123456' }
-          }
-        },
-        ResetPasswordInput: {
-          type: 'object',
-          properties: {
-            email: { type: 'string', example: 'user@example.com' },
-            token: { type: 'string', example: '123456' },
-            password: { type: 'string', example: 'yeniSifre123' }
-          }
-        }
+      example: {
+        message: 'Xəta baş verdi',
+        errors: [{ msg: 'Email artıq mövcuddur' }]
       }
+    },
+
+    // === ENUM-LAR ===
+    AuthProvider: { type: 'string', enum: ['EMAIL', 'GOOGLE', 'APPLE'] },
+    PersonalityType: { type: 'string', enum: ['INTROVERT', 'EXTROVERT', 'AMBIVERT'] },
+    SubscriptionPlan: { type: 'string', enum: ['FREE', 'PREMIUM_MONTHLY', 'PREMIUM_YEARLY'] },
+    ReportStatus: { type: 'string', enum: ['PENDING', 'RESOLVED', 'REJECTED'] },
+    VerificationStatus: { type: 'string', enum: ['NOT_SUBMITTED','PENDING','APPROVED','REJECTED'] },
+    ChallengeInstanceStatus: { type: 'string', enum: ['PENDING','ACCEPTED','DECLINED','COMPLETED','EXPIRED'] },
+    VenueCategory: { type: 'string', enum: ['GENERAL','CAFE','RESTAURANT','UNIVERSITY','BAR','EVENT_SPACE','CLUB'] },
+    IcebreakerCategory: { type: 'string', enum: ['GENERAL','FOOD_DRINK','STUDENT_LIFE','NIGHTLIFE','DEEP_TALK'] }
+  },
+  securitySchemes: {
+    bearerAuth: {
+      type: 'http',
+      scheme: 'bearer',
+      bearerFormat: 'JWT'
     }
+  }
+}
+
   },
   apis: [],
 };

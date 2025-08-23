@@ -162,11 +162,17 @@ const refreshAccessToken = async (oldRefreshToken) => {
     if (!dbToken || dbToken.expiresAt < new Date()) {
         throw new Error('Refresh token etibarlı deyil və ya vaxtı bitib.');
     }
+
     const payload = jwt.verify(oldRefreshToken, process.env.REFRESH_TOKEN_SECRET);
-    const newAccessToken = jwt.sign({ userId: payload.userId }, process.env.JWT_SECRET, {
-        expiresIn: process.env.ACCESS_TOKEN_EXPIRATION || '15m',
-    });
-    return { accessToken: newAccessToken };
+
+    // Yeni access ve refresh tokenleri oluştur
+    const { accessToken, refreshToken: newRefreshToken } = await generateAndStoreTokens(payload.userId);
+
+    // Eski refresh token'i veritabanından sil
+    await prisma.refreshToken.delete({ where: { token: oldRefreshToken } });
+
+    // Yeni tokenleri döndür
+    return { accessToken, refreshToken: newRefreshToken };
 };
 
 const getUserProfileById = async (userId) => {

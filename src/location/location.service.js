@@ -25,7 +25,17 @@ const MAX_DISTANCE_METERS = 200; // Maksimum icazə verilən məsafə (metrlə)
 
 
 const checkInUser = async (userId, latitude, longitude) => {
-    const userPoint = `point(${longitude}, ${latitude})`; // İstifadəçinin nöqtəsini bir string olaraq hazırlayırıq
+    const user = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { isActive: true }
+    });
+    if (!user || !user.isActive) {
+        const error = new Error('Hesabınız deaktiv edilib. Məkana daxil ola bilməzsiniz.');
+        error.statusCode = 403; // Forbidden
+        throw error;
+    }
+
+    const userPoint = `point(${longitude}, ${latitude})`;
 
     const nearbyVenues = await prisma.$queryRaw`
         SELECT id, name, address, latitude, longitude
@@ -130,16 +140,7 @@ const finalizeCheckIn = async (userId, venueId, userLatitude, userLongitude) => 
 };
 
 // Test məqsədli funksiya
-const seedDatabaseWithVenues = async () => {
-    await prisma.venue.deleteMany({});
-    await prisma.venue.createMany({
-        data: [
-            { name: 'Second Cup', address: 'Fountains Square', latitude: 40.3777, longitude: 49.8344 },
-            { name: 'Coffee Moffie', address: 'Khagani Street', latitude: 40.3789, longitude: 49.8398 },
-            { name: 'Emalatxana', address: 'Istiqlaliyyat Street', latitude: 40.3665, longitude: 49.8324 },
-        ]
-    });
-};
+
 const setIncognitoStatus = async (userId, status) => {
     // 1. İstifadəçinin aktiv sessiyası olub-olmadığını yoxlayırıq (Bu hissə düzgündür)
     const activeSession = await prisma.activeSession.findUnique({
@@ -237,7 +238,6 @@ const getLiveVenueStats = async (venueId) => {
 
 module.exports = {
     checkInUser,
-    seedDatabaseWithVenues,
     setIncognitoStatus,
     finalizeCheckIn, getVenueStats, getLiveVenueStats, getDistanceInMeters
 };

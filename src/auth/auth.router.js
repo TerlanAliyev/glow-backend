@@ -2,7 +2,7 @@
 const express = require('express');
 const { registerUser, loginUser, getMyProfile, googleLogin, logoutUser, forgotPassword,
   verifyOtp,
-  resetPassword, confirmEmailChange, initiateEmailChange
+  resetPassword, confirmEmailChange, initiateEmailChange, refreshToken
 } = require('./auth.controller');
 const { authenticateToken } = require('../middleware/auth.middleware');
 const { body } = require('express-validator');
@@ -24,14 +24,17 @@ router.post(
       .optional()
       .isInt({ min: 1 }) // Məcburi deyil, amma göndərilərsə rəqəm olmalıdır
       .withMessage('Cinsi yönəlim ID-si düzgün deyil.'),
-      
+
     body('relationshipGoalId')
       .optional()
       .isInt({ min: 1 }) // Məcburi deyil, amma göndərilərsə rəqəm olmalıdır
       .withMessage('İlişki hədəfi ID-si düzgün deyil.'),
   ],
   registerUser
-);
+); 
+router.post('/refresh-token', [
+  body('refreshToken').notEmpty().withMessage('Refresh token təqdim edilməlidir.')
+], refreshToken);
 router.post(
   '/login',
   authLimiter, // Rate limiter

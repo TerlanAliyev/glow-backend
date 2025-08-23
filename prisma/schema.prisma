@@ -95,7 +95,7 @@ model User {
   notifications   Notification[]
   feedbacks Feedback[]
   role   Role @relation(fields: [roleId], references: [id])
-  roleId Int  @default(2) 
+  roleId Int  @default(1) 
   isActive Boolean @default(true)
 
   subscription         SubscriptionPlan @default(FREE)
@@ -134,7 +134,7 @@ model Profile {
   photos      Photo[]
   phoneNumber   String?          @unique
   extraSignalCredits Int     @default(0) // YENİ SAHƏ: Mükafatlı siqnal kreditləri
-  hideViewFootprints   Boolean   @default(false) // YENİ SAHƏ
+  hideViewFootprints   Boolean   @default(false) 
   preferredMinAge      Int?
   preferredMaxAge      Int?
   notifyOnNewSignal    Boolean @default(true)

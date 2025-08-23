@@ -10,33 +10,51 @@ const registerPrivateChatHandlers = (mainNamespace, socket) => {
         try {
             const { connectionId, content, imageUrl, audioUrl } = payload;
             const senderId = socket.userId;
-            const senderProfile = await prisma.profile.findUnique({
-                where: { userId: senderId },
-                select: { isVerified: true }
+
+            // ƏLAVƏ ADDIM: Göndərən istifadəçinin aktiv olub-olmadığını yoxlayaq
+            const sender = await prisma.user.findUnique({
+                where: { id: senderId },
+                select: { isActive: true, profile: { select: { isVerified: true, name: true } } }
             });
-            if (!senderProfile.isVerified) {
+            
+            if (!sender || !sender.isActive) {
+                 return socket.emit('error', { message: 'Hesabınız aktiv deyil.', errorCode: 'USER_BANNED' });
+            }
+            if (!sender.profile.isVerified) {
                 return socket.emit('error', {
                     message: 'Mesaj göndərmək üçün profilinizi təsdiqləməlisiniz.',
                     errorCode: 'VERIFICATION_REQUIRED'
                 });
             }
+
             const connection = await prisma.connection.findFirst({
                 where: { id: connectionId, OR: [{ userAId: senderId }, { userBId: senderId }] }
             });
+            
             if (!connection) {
                 return socket.emit('error', { message: 'Bu söhbətə mesaj göndərə bilməzsiniz.' });
             }
 
-            const newMessage = await chatService.createMessage(senderId, connectionId, { content, imageUrl, audioUrl });
-
+            // Alıcını tapırıq
             const receiverId = connection.userAId === senderId ? connection.userBId : connection.userAId;
+            const receiver = await prisma.user.findUnique({
+                where: { id: receiverId },
+                select: { isActive: true }
+            });
+
+            // ƏLAVƏ ADDIM: Alıcının aktiv olub-olmadığını yoxlayaq
+            if (!receiver || !receiver.isActive) {
+                return socket.emit('error', { message: 'Bu istifadəçi mesaj qəbul edə bilməz.', errorCode: 'RECEIVER_INACTIVE' });
+            }
+
+            const newMessage = await chatService.createMessage(senderId, connectionId, { content, imageUrl, audioUrl });
 
             // Mesajı hər iki tərəfə real-zamanlı olaraq göndəririk
             mainNamespace.to(senderId).emit('receive_message', newMessage);
             mainNamespace.to(receiverId).emit('receive_message', newMessage);
 
             // Mesajın alıcısına push bildiriş göndəririk
-            const senderName = newMessage.sender.profile.name;
+            const senderName = sender.profile.name;
             let notificationBody = content;
             if (imageUrl) notificationBody = "📷 Şəkil göndərdi";
             if (audioUrl) notificationBody = "🎵 Səsli mesaj göndərdi";

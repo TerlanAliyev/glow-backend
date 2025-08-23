@@ -17,6 +17,20 @@ const registerConnectionHandlers = (mainNamespace, socket) => {
                 where: { id: senderId },
                 include: { profile: true }
             });
+
+            if (!sender || !sender.isActive) {
+                return socket.emit('error', { message: 'Hesabınız aktiv deyil.', errorCode: 'USER_BANNED' });
+            }
+
+            // ADDIM 1.2: Alıcının göndərəni bloklayıb-bloklamadığını yoxlayaq
+            const isBlocked = await prisma.block.findUnique({
+                where: { blockerId_blockedId: { blockerId: receiverId, blockedId: senderId } }
+            });
+            if (isBlocked) {
+                return socket.emit('error', { message: 'Bu istifadəçi sizi bloklayıb.', errorCode: 'USER_BLOCKED' });
+            }
+            
+
             if (!sender || !sender.profile) {
                 return socket.emit('error', { message: 'İstifadəçi tapılmadı.' });
             }

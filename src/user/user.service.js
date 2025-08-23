@@ -74,7 +74,7 @@ const reportUser = async (reporterId, reportedId, reason) => {
         where: {
             reporterId: reporterId,
             // DÜZƏLİŞ: 'reportedId' -> 'reportedUserId'
-            reportedUserId: reportedId, 
+            reportedUserId: reportedId,
             createdAt: {
                 gte: twentyFourHoursAgo,
             },
@@ -133,56 +133,67 @@ const reportUser = async (reporterId, reportedId, reason) => {
 //Premium function to get profile and log view
 
 const getProfileAndLogView = async (targetUserId, viewerId) => {
-
-    // ADDIM 1: İstifadəçinin başqasının profilinə baxıb-baxmadığını yoxlayaq
-    if (targetUserId !== viewerId) {
-        // Əgər başqasının profilinə baxırsa, baxan şəxsin (viewer) məxfiliyini yoxlayaq
-        const viewer = await prisma.user.findUnique({
+    // ADDIM 1: `targetUser` və `viewer` dəyişənlərini bir dəfə funksiyanın başında əldə edin
+    const [viewer, targetUser] = await Promise.all([
+        prisma.user.findUnique({
             where: { id: viewerId },
             include: { profile: true }
-        });
-
-        if (viewer) {
-            const isPremium = viewer.subscription === 'PREMIUM' || (viewer.premiumExpiresAt && viewer.premiumExpiresAt > new Date());
-            const hidesFootprints = viewer.profile?.hideViewFootprints || false;
-
-            // Yalnız əgər istifadəçi premium DEYİLSƏ və ya premium olub ayaq izini GİZLƏTMİRSƏ, baxışı qeydə al.
-            if (!isPremium || !hidesFootprints) {
-                await prisma.profileView.upsert({
-                    where: { viewerId_viewedId: { viewerId, viewedId: targetUserId } },
-                    update: { createdAt: new Date() },
-                    create: { viewerId, viewedId: targetUserId },
-                });
-            }
-        }
-    }
-
-    // ADDIM 2: Hər iki halda (istər özünə, istərsə də başqasına baxsın), baxılan şəxsin profilini qaytaraq
-    const targetUser = await prisma.user.findUnique({
-        where: { id: targetUserId },
-        select: {
-            id: true,
-            subscription: true, // Baxılan şəxsin premium olub-olmadığını bilmək üçün
-            profile: {
-                include: {
-                    photos: true,
-                    interests: true
-                }
-            },
-            badges: { // YENİ BLOK
-                include: {
-                    badge: true // Hər qazanılmış nişanın öz məlumatını da gətir
+        }),
+        prisma.user.findUnique({
+            where: { id: targetUserId },
+            // Bütün lazımi məlumatları bir dəfəyə alın
+            select: {
+                id: true,
+                isActive: true, // Əlavə olaraq
+                subscription: true,
+                profile: {
+                    include: {
+                        photos: true,
+                        interests: true
+                    }
+                },
+                badges: {
+                    include: {
+                        badge: true
+                    }
                 }
             }
-        }
-    });
+        })
+    ]);
 
-    if (!targetUser) {
-        const error = new Error('İstifadəçi tapılmadı.');
+    // Əvvəlcə hədəf istifadəçinin mövcudluğunu və aktivliyini yoxlayırıq
+    if (!targetUser || !targetUser.isActive) {
+        const error = new Error('İstifadəçi tapılmadı və ya hesabı aktiv deyil.');
         error.statusCode = 404;
         throw error;
     }
 
+    // ADDIM 2: Əgər istifadəçi öz profili deyilə, digər yoxlamaları edirik
+    if (targetUserId !== viewerId) {
+        const isBlocked = await prisma.block.findUnique({
+            where: { blockerId_blockedId: { blockerId: viewerId, blockedId: targetUserId } }
+        });
+        if (isBlocked) {
+            const error = new Error('Bu profilə baxmağa icazəniz yoxdur.');
+            error.statusCode = 403;
+            throw error;
+        }
+        
+        // Məxfiliyə baxış hissəsi
+        const isPremium = viewer.subscription === 'PREMIUM' || (viewer.premiumExpiresAt && viewer.premiumExpiresAt > new Date());
+        const hidesFootprints = viewer.profile?.hideViewFootprints || false;
+
+        if (!isPremium || !hidesFootprints) {
+            await prisma.profileView.upsert({
+                where: { viewerId_viewedId: { viewerId, viewedId: targetUserId } },
+                update: { createdAt: new Date() },
+                create: { viewerId, viewedId: targetUserId },
+            });
+        }
+    }
+
+    // ADDIM 3: Funksiyanın sonuna gəlib çıxanda təmiz `targetUser` obyektini qaytarın
+    delete targetUser.isActive; // Aktivlik yoxlaması bitdikdən sonra bu sahəni cavabdan silin
     return targetUser;
 };
 const deleteOwnAccount = async (userId, otp) => {

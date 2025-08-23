@@ -33,14 +33,7 @@ const checkIn = asyncHandler(async (req, res, next) => {
     }
 });
 
-const seedVenues = async (req, res, next) => {
-    try {
-        await locationService.seedDatabaseWithVenues();
-        res.status(201).json({ message: 'Databaza test məkanları ilə uğurla dolduruldu!'});
-    } catch (error) {
-        next(error);
-    }
-};
+
 const setIncognito = asyncHandler(async (req, res) => {
     const { status } = req.body; // status: true və ya false
     if (typeof status !== 'boolean') {
@@ -81,7 +74,6 @@ const getLiveVenueStats = asyncHandler(async (req, res) => {
 });
 module.exports = {
   checkIn,
-  seedVenues,
   setIncognito,
   finalizeCheckIn,getVenueStats,getLiveVenueStats
 };
