@@ -111,7 +111,7 @@ model User {
   accountDeletionToken AccountDeletionToken?
   emailChangeToken EmailChangeToken?
   refreshTokens RefreshToken[]
-  groupMessageReactions GroupMessageReaction[] // Bu sətri əlavə edin
+  groupMessageReactions GroupMessageReaction[] 
   checkInHistory CheckInHistory[]
   badges UserBadge[] // YENİ ƏLAQƏ
 
@@ -148,7 +148,7 @@ model Profile {
   provisionalSignalsUsed Int                  @default(0)
   currentStatus        String?
   statusExpiresAt      DateTime?
-sexualOrientation   ProfileOption? @relation("ProfileToSexualOrientation", fields: [sexualOrientationId], references: [id])
+  sexualOrientation   ProfileOption? @relation("ProfileToSexualOrientation", fields: [sexualOrientationId], references: [id])
   sexualOrientationId Int?
 
   relationshipGoal      ProfileOption? @relation("ProfileToRelationshipGoal", fields: [relationshipGoalId], references: [id])
@@ -180,7 +180,7 @@ model Venue {
   isFeatured Boolean  @default(false)   // Məkanın "Featured" olması
   activeSessions ActiveSession[]
   groupMessages VenueGroupMessage[]
-  category     VenueCategory @default(GENERAL) // YENİ SAHƏ
+  category     VenueCategory @default(GENERAL) 
   statsSummary Json? 
   checkInHistory CheckInHistory[]
   challenges ChallengeInstance[]

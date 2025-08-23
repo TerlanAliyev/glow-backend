@@ -15,13 +15,11 @@ const getAdminLogs = async (queryParams) => {
 
     const skip = (page - 1) * limit;
 
-    // DƏYİŞİKLİK: prisma.adminLog -> prisma.auditLog
     const logs = await prisma.auditLog.findMany({
         orderBy: { createdAt: 'desc' },
         skip: skip,
         take: limit,
         include: {
-            // DƏYİŞİKLİK: admin -> actor (yeni modelə uyğun)
             actor: {
                 include: {
                     profile: { select: { name: true } }
@@ -30,7 +28,6 @@ const getAdminLogs = async (queryParams) => {
         }
     });
 
-    // ... funksiyanın qalan hissəsi (enrichedLogs məntiqi) dəyişməz qalır ...
     const enrichedLogs = await Promise.all(
         logs.map(async (log) => {
             // ...
@@ -38,13 +35,12 @@ const getAdminLogs = async (queryParams) => {
                 ...log,
                 details: {
                     ...log.details,
-                    targetName: 'N/A' // Bu hissəni hələlik sadələşdiririk
+                    targetName: 'N/A' 
                 }
             };
         })
     );
 
-    // DƏYİŞİKLİK: prisma.adminLog -> prisma.auditLog
     const totalLogs = await prisma.auditLog.count();
 
     return {

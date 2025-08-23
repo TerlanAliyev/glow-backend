@@ -1,7 +1,6 @@
 const prisma = require('../../config/prisma');
 
 const getAllTemplates = (queryParams) => {
-    // Gələcəkdə səhifələmə əlavə etmək olar
     return prisma.challengeTemplate.findMany({
         orderBy: { createdAt: 'desc' }
     });
@@ -38,7 +37,6 @@ const updateTemplate = (templateId, data) => {
     if (data.name) templateData.name = data.name;
     if (data.description) templateData.description = data.description;
     
-    // DÜZELİŞ: hasOwnProperty yerine 'in' operator veya Object.prototype.hasOwnProperty kullan
     if ('isActive' in data || Object.prototype.hasOwnProperty.call(data, 'isActive')) {
         templateData.isActive = Boolean(data.isActive === 'true' || data.isActive === true);
     }
