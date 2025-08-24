@@ -8,10 +8,10 @@ const registerPrivateChatHandlers = (mainNamespace, socket) => {
 
     const sendMessage = async (payload) => {
         try {
-            const { connectionId, content, imageUrl, audioUrl } = payload;
+            // "content" əvəzinə "encryptedContent" istifadə olunur
+            const { connectionId, encryptedContent, imageUrl, audioUrl } = payload;
             const senderId = socket.userId;
 
-            // ƏLAVƏ ADDIM: Göndərən istifadəçinin aktiv olub-olmadığını yoxlayaq
             const sender = await prisma.user.findUnique({
                 where: { id: senderId },
                 select: { isActive: true, profile: { select: { isVerified: true, name: true } } }
@@ -35,33 +35,31 @@ const registerPrivateChatHandlers = (mainNamespace, socket) => {
                 return socket.emit('error', { message: 'Bu söhbətə mesaj göndərə bilməzsiniz.' });
             }
 
-            // Alıcını tapırıq
             const receiverId = connection.userAId === senderId ? connection.userBId : connection.userAId;
             const receiver = await prisma.user.findUnique({
                 where: { id: receiverId },
                 select: { isActive: true }
             });
 
-            // ƏLAVƏ ADDIM: Alıcının aktiv olub-olmadığını yoxlayaq
             if (!receiver || !receiver.isActive) {
                 return socket.emit('error', { message: 'Bu istifadəçi mesaj qəbul edə bilməz.', errorCode: 'RECEIVER_INACTIVE' });
             }
 
-            const newMessage = await chatService.createMessage(senderId, connectionId, { content, imageUrl, audioUrl });
+            // chatService-ə encryptedContent göndərilir
+            const newMessage = await chatService.createMessage(senderId, connectionId, { encryptedContent, imageUrl, audioUrl });
 
-            // Mesajı hər iki tərəfə real-zamanlı olaraq göndəririk
             mainNamespace.to(senderId).emit('receive_message', newMessage);
             mainNamespace.to(receiverId).emit('receive_message', newMessage);
 
-            // Mesajın alıcısına push bildiriş göndəririk
             const senderName = sender.profile.name;
-            let notificationBody = content;
+            // Bildiriş üçün mesajın məzmununu bilmirik, ümumi bir mətn istifadə edirik
+            let notificationBody = "Yeni bir mesajınız var.";
             if (imageUrl) notificationBody = "📷 Şəkil göndərdi";
             if (audioUrl) notificationBody = "🎵 Səsli mesaj göndərdi";
 
             await sendPushNotification(
                 receiverId,
-                `${senderName}`, // Bildiriş başlığı
+                `${senderName}`,
                 notificationBody,
                 { connectionId: connectionId.toString() },
                 'NEW_MESSAGE'

@@ -29,7 +29,8 @@ router.post(
         body('longitude').isFloat().withMessage('Uzunluq (longitude) məcburidir və düzgün formatda olmalıdır.'),
     ],
     finalizeCheckIn
-);router.get('/venues/:id/stats', authenticateToken, getVenueStats);
+);
+router.get('/venues/:id/stats', authenticateToken, getVenueStats);
 router.get('/venues/:id/live-stats', authenticateToken, isPremium, getLiveVenueStats);
 
 module.exports = router;

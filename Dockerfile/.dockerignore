@@ -1,0 +1,10 @@
+../node_modules
+../.git
+../.env
+../.env.local
+../README.md
+../Docker
+../uploads/*
+../.gitignore
+../error.log
+../combined.log
