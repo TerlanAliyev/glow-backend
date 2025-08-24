@@ -111,7 +111,8 @@ router.get('/icebreakers', adminOnly, getIcebreakers);
 router.post('/icebreakers', adminOnly, [
     body('text').notEmpty(),
     body('category').optional().isIn(['GENERAL', 'FOOD_DRINK', 'STUDENT_LIFE', 'NIGHTLIFE', 'DEEP_TALK'])
-], createIcebreaker);router.patch('/icebreakers/:id', adminOnly, updateIcebreaker);
+], createIcebreaker);
+router.patch('/icebreakers/:id', adminOnly, updateIcebreaker);
 router.delete('/icebreakers/:id', adminOnly, deleteIcebreaker);
 
 

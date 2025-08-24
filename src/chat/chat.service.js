@@ -1,15 +1,23 @@
+// Fayl: src/chat/chat.service.js
 
 const prisma = require('../config/prisma');
 const { redisClient } = require('../config/redis');
-
-// Fayl: src/chat/chat.service.js
-
 const redis = require('../config/redis');
 
+const clearAdminReportsCache = async () => {
+    try {
+        const keys = await redis.keys('admin:reports:page:*');
+        if (keys.length > 0) {
+            await redis.del(keys);
+            console.log('[CACHE INVALIDATION] Admin Reports keş təmizləndi.');
+        }
+    } catch (error) {
+        console.error('Admin Reports keşini təmizləmə xətası:', error);
+    }
+};
 
 
 const getMessagesForConnection = async (userId, connectionId, { page = 1, limit = 30 }) => {
-    // 1. Təhlükəsizlik yoxlaması
     const connection = await prisma.connection.findFirst({
         where: { id: connectionId, OR: [{ userAId: userId }, { userBId: userId }] }
     });
@@ -18,7 +26,6 @@ const getMessagesForConnection = async (userId, connectionId, { page = 1, limit 
     const cacheKey = `chat_history:${connectionId}:page:${page}:limit:${limit}`;
     const cacheTTL = 300; // 5 dəqiqə
 
-    // 2. Keşdə axtarış
     try {
         const cachedData = await redis.get(cacheKey);
         if (cachedData) {
@@ -31,7 +38,6 @@ const getMessagesForConnection = async (userId, connectionId, { page = 1, limit 
 
     console.log(`[CACHE MISS] ❌ Söhbət tarixçəsi keşdə tapılmadı. Verilənlər bazasından alınır...`);
 
-    // 3. Verilənlər bazasına sorğu
     const skip = (page - 1) * limit;
     const [messages, total] = await prisma.$transaction([
         prisma.message.findMany({
@@ -39,7 +45,7 @@ const getMessagesForConnection = async (userId, connectionId, { page = 1, limit 
             orderBy: { createdAt: 'desc' },
             skip,
             take: limit,
-            include: { sender: { include: { profile: { select: { name: true } } } } } // Yalnız ad məlumatını çəkirik
+            include: { sender: { include: { profile: { select: { name: true } } } } }
         }),
         prisma.message.count({ where: { connectionId } })
     ]);
@@ -50,7 +56,6 @@ const getMessagesForConnection = async (userId, connectionId, { page = 1, limit 
         currentPage: page
     };
 
-    // 4. Nəticəni Redis-ə yazırıq
     try {
         await redis.set(cacheKey, JSON.stringify(result), 'EX', cacheTTL);
     } catch (error) {
@@ -60,17 +65,18 @@ const getMessagesForConnection = async (userId, connectionId, { page = 1, limit 
     return result;
 };
 
+
+
 const reportMessage = async (reporterId, messageId, reason) => {
     const message = await prisma.message.findUnique({ where: { id: messageId } });
     if (!message) throw new Error('Şikayət üçün belə bir mesaj tapılmadı.');
-
-    // TODO: Gələcəkdə yoxlamaq olar ki, şikayət edən şəxs həmin söhbətin iştirakçısıdırmı.
+    await clearAdminReportsCache();
 
     return prisma.report.create({
         data: {
             reporterId,
             reportedMessageId: messageId,
-            reportedUserId: message.senderId, // Mesajı göndərən şəxs avtomatik şikayət olunur
+            reportedUserId: message.senderId,
             reason,
         }
     });
@@ -82,12 +88,13 @@ const reportGroupMessage = async (reporterId, messageId, reason) => {
         error.statusCode = 404;
         throw error;
     }
+    await clearAdminReportsCache();
 
     return prisma.report.create({
         data: {
             reporterId,
             reportedGroupMessageId: Number(messageId),
-            reportedUserId: message.senderId, // Mesajı göndərən avtomatik şikayət olunur
+            reportedUserId: message.senderId,
             reason,
         }
     });
@@ -107,7 +114,7 @@ const getGroupMessagesForVenue = async (venueId) => {
         take: 50,
         include: {
             sender: { include: { profile: true } },
-            reactions: { // YENİ: Hər mesaja aid reaksiyaları da gətiririk
+            reactions: {
                 select: { emoji: true, user: { select: { profile: { select: { name: true } } } } }
             }
         }
@@ -116,12 +123,10 @@ const getGroupMessagesForVenue = async (venueId) => {
 const deleteOwnMessage = async (userId, messageId) => {
     const messageIdNum = Number(messageId);
 
-    // 1. Mesajı tapırıq
     const message = await prisma.message.findUnique({
         where: { id: messageIdNum },
     });
 
-    // 2. Mesajın mövcudluğunu və istifadəçiyə aid olub-olmadığını yoxlayırıq
     if (!message) {
         const error = new Error('Mesaj tapılmadı.');
         error.statusCode = 404;
@@ -130,34 +135,27 @@ const deleteOwnMessage = async (userId, messageId) => {
 
     if (message.senderId !== userId) {
         const error = new Error('Bu mesajı silməyə icazəniz yoxdur.');
-        error.statusCode = 403; // Forbidden
+        error.statusCode = 403;
         throw error;
     }
 
-    // 3. Mesajı silirik
     await prisma.message.delete({
         where: { id: messageIdNum },
     });
-
-    // Gələcəkdə WebSocket vasitəsilə qarşı tərəfə mesajın silindiyini bildirmək olar
-    // mainNamespace.to(receiverId).emit('message_deleted', { messageId });
 
     return { message: 'Mesaj uğurla silindi.' };
 };
 
 const createMessage = async (senderId, connectionId, data) => {
-    // Gələn məlumatları bir obyektdən çıxarırıq
-    const { content, imageUrl, audioUrl } = data;
+    // data obyektindən encryptedContent-i çıxarırıq
+    const { encryptedContent, imageUrl, audioUrl } = data;
 
-    // Yoxlama: Məlumatlardan ən azı biri mövcud olmalıdır
-    if (!content && !imageUrl && !audioUrl) {
+    // Şərtə encryptedContent-i əlavə edirik
+    if (!encryptedContent && !imageUrl && !audioUrl) {
         throw new Error("Mesajın mətni, şəkli və ya səsi olmalıdır.");
     }
     
-    // YENİ ƏLAVƏ OLUNMUŞ BLOK
-    // Yeni mesaj yaradılmadan əvvəl mövcud keşlər silinir.
-    // Bu, mesaj göndərilərkən bir az gecikmə yarada bilər,
-    // lakin keşin hər zaman ən son məlumatı əks etdirməsini təmin edir.
+    // Keş təmizlənməsi
     const connectionCacheKeys = await redis.keys(`chat_history:${connectionId}:*`);
     if (connectionCacheKeys.length > 0) {
         await redis.del(connectionCacheKeys).catch(err => console.error(err));
@@ -166,7 +164,8 @@ const createMessage = async (senderId, connectionId, data) => {
 
     return prisma.message.create({
         data: {
-            content,
+            // content-i encryptedContent ilə əvəz edirik
+            content: encryptedContent,
             imageUrl,
             audioUrl,
             senderId,
@@ -183,16 +182,18 @@ const createMessage = async (senderId, connectionId, data) => {
 };
 
 const createGroupMessage = async (senderId, venueId, data) => {
-    // Gələn məlumatları vahid bir "data" obyektindən çıxarırıq
-    const { content, imageUrl, audioUrl, videoUrl } = data;
+    // data obyektindən encryptedContent-i çıxarırıq
+    const { encryptedContent, imageUrl, audioUrl, videoUrl } = data;
 
-    if (!content && !imageUrl && !audioUrl && !videoUrl) {
+    // Şərtə encryptedContent-i əlavə edirik
+    if (!encryptedContent && !imageUrl && !audioUrl && !videoUrl) {
         throw new Error("Mesaj boş ola bilməz.");
     }
 
     return prisma.venueGroupMessage.create({
         data: {
-            content,
+            // content-i encryptedContent ilə əvəz edirik
+            content: encryptedContent,
             imageUrl,
             audioUrl,
             videoUrl,
@@ -209,8 +210,6 @@ const createGroupMessage = async (senderId, venueId, data) => {
     });
 };
 const addOrUpdateGroupReaction = async (userId, messageId, emoji) => {
-    // Upsert: Əgər istifadəçi bu mesaja bu emoji ilə reaksiya veribsə, heç nə etmə,
-    // yoxdursa, yeni reaksiya yarat. Bu, təkrarlanmanın qarşısını alır.
     await prisma.groupMessageReaction.upsert({
         where: {
             messageId_userId_emoji: {
@@ -227,7 +226,6 @@ const addOrUpdateGroupReaction = async (userId, messageId, emoji) => {
         }
     });
 
-    // Həmin mesaja aid BÜTÜN reaksiyaları qaytarırıq
     return prisma.groupMessageReaction.findMany({
         where: { messageId: Number(messageId) },
         select: { emoji: true, user: { select: { profile: { select: { name: true } } } } }
