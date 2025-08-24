@@ -2284,12 +2284,10 @@ const options = {
       type: 'object',
       properties: {
         email: { type: 'string', format: 'email', example: 'user@example.com' },
-        password: { type: 'string', minLength: 6, example: 'mypassword123' },
+        password: { type: 'string', minLength: 6, example: 'mypassword' },
         name: { type: 'string', example: 'John Doe' },
         age: { type: 'integer', example: 25 },
-        gender: { type: 'string', example: 'FEMALE' },
-        sexualOrientationId : { type: 'integer', example: 1 },
-        relationshipGoalId : { type: 'integer', example: 3 },
+        gender: { type: 'string', example: 'male' }
       },
       required: ['email', 'password', 'name', 'age', 'gender']
     },

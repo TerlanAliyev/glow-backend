@@ -4,20 +4,36 @@ const chatService = require('../../chat/chat.service');
 const prisma = require('../../config/prisma');
 
 // Qadağan olunmuş sözlər və onlardan yaradılmış RegEx
+const forbiddenWords = ['sik', 'sikdir', 'amciq'].filter(word => word.trim() !== '');
+const profanityRegex = new RegExp(`\\b(${forbiddenWords.join('|')})\\b`, 'i');
 
 const registerGroupChatHandlers = (mainNamespace, socket) => {
 
     const sendGroupMessage = async (payload) => {
         try {
             const senderId = socket.userId;
-            const { venueId, encryptedContent, imageUrl, audioUrl, videoUrl } = payload;
+            const { venueId, content, imageUrl, audioUrl, videoUrl } = payload;
             const groupChatRoom = `group-chat-${venueId}`;
             const senderProfile = await prisma.profile.findUnique({
                 where: { userId: senderId },
                 select: { isVerified: true }
             });
 
-            const newMessage = await chatService.createGroupMessage(senderId, venueId, { encryptedContent, imageUrl, audioUrl, videoUrl });
+           
+            if (content) {
+                if (profanityRegex.test(content)) {
+                    console.log(`[MODERATION] İstifadəçi ${senderId} nalayiq ifadə işlətdi: "${content}"`);
+                    const systemWarningMessage = {
+                        id: `warning-${Date.now()}`,
+                        content: 'İstifadə etdiyiniz ifadələr icma qaydalarına ziddir. Mesajınız göndərilmədi.',
+                        sender: { id: 'lyra-bot-id', profile: { name: 'Lyra Moderator' } },
+                        isSystemWarning: true
+                    };
+                    return socket.emit('receive_venue_group_message', systemWarningMessage);
+                }
+            }
+
+            const newMessage = await chatService.createGroupMessage(senderId, venueId, { content, imageUrl, audioUrl, videoUrl });
             mainNamespace.to(groupChatRoom).emit('receive_venue_group_message', newMessage);
 
         } catch (error) {

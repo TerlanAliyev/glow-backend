@@ -144,3 +144,4 @@ Bu böyük yeniləmə ilə istifadəçi aktivliyini, güvəni və platforma daxi
 - **Redis İnteqrasiyası:** Yüksək yüklənmə altında performansı artırmaq üçün Caching və Socket.IO Adapter-in tətbiqi.
 - **"İstilik Xəritəsi":** Məkanlar xəritəsini, məkanların aktivliyinə görə rənglənən bir "istilik xəritəsinə" çevirmək.
 - **Daha Çox Premium Funksiya:** "Səni Kim Bəyəndi?", "Profil Gücləndirmə (Boost)" kimi yeni gəlir modelləri.
+# Lyra-Backend

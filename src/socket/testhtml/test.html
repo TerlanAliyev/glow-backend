@@ -391,16 +391,11 @@
     </div>
 
     <script src="https://cdn.socket.io/4.7.5/socket.io.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.2.0/crypto-js.min.js"></script>
-
     <script>
         document.addEventListener('DOMContentLoaded', () => {
             let socket, currentUser, currentConnection, mediaRecorder, audioChunks = [];
             let typingTimeout = null, groupTypingTimeout = null;
             let compassUsers = [], groupTypingUsers = {}, groupReactions = {};
-
-            // E2EE üçün istifadə olunacaq statik açar
-            const E2EE_KEY = "gizli-ve-guclu-acar";
 
             const elements = {
                 status: document.getElementById('status'),
@@ -446,17 +441,6 @@
                 elements.logs.scrollTop = elements.logs.scrollHeight;
             }
 
-            // DÜZƏLİŞ: Mesajı açmaq üçün funksiya
-            function decryptMessageContent(encryptedContent) {
-                try {
-                    if (!encryptedContent) return "";
-                    const bytes = CryptoJS.AES.decrypt(encryptedContent, E2EE_KEY);
-                    return bytes.toString(CryptoJS.enc.Utf8);
-                } catch (e) {
-                    console.error("Mesajın şifrəsi açıla bilmədi:", e);
-                    return "Şifrəsi açıla bilməyən mesaj";
-                }
-            }
 
             function renderCompass() {
                 elements.compassResults.innerHTML = '';
@@ -485,17 +469,13 @@
                 }
             }
 
-            // DÜZƏLİŞ: Mesajları render edərkən decrypt edirik
             function appendMessage(msg, isHistory = false) {
                 const msgDiv = document.createElement('div');
                 msgDiv.className = 'message';
                 msgDiv.id = `msg-${msg.id}`;
                 let contentHtml = '';
-                // Şifrəli məzmunu açırıq
-                const decryptedContent = decryptMessageContent(msg.content);
-
-                if (decryptedContent) {
-                    contentHtml += `<div>${decryptedContent}</div>`;
+                if (msg.content) {
+                    contentHtml += `<div>${msg.content}</div>`;
                 }
                 if (msg.imageUrl) {
                     contentHtml += `<img src="${msg.imageUrl}" class="chat-image" alt="Söhbət şəkli" onclick="window.open('${msg.imageUrl}', '_blank')">`;
@@ -505,11 +485,11 @@
                 }
                 if (currentUser && msg.senderId === currentUser.id) {
                     msgDiv.classList.add('sent');
-                    msgDiv.innerHTML = `${contentHtml}<span class="read-receipt" id="receipt-msg-${msg.id}">✓</span>`;
+                    msgDiv.innerHTML = `<div>${msg.content}</div><span class="read-receipt" id="receipt-msg-${msg.id}">✓</span>`;
                 } else {
                     msgDiv.classList.add('received');
                     let senderHtml = msg.sender?.profile?.name ? `<div class="sender">${msg.sender.profile.name}</div>` : '';
-                    msgDiv.innerHTML = `${senderHtml}${contentHtml}`;
+                    msgDiv.innerHTML = `${senderHtml}<div>${msg.content}</div>`;
                 }
 
                 if (isHistory) {
@@ -518,9 +498,14 @@
                     elements.chatMessages.appendChild(msgDiv);
                     elements.chatMessages.scrollTop = elements.chatMessages.scrollHeight;
                 }
+
+
+
+
             }
 
-            // DÜZƏLİŞ: Qrup mesajlarını render edərkən decrypt edirik
+            // --- Qrup Mesajları ---
+
             function appendGroupMessage(msg) {
                 const msgContainer = document.createElement('div');
                 msgContainer.className = 'message-container';
@@ -529,18 +514,18 @@
                 msgDiv.className = 'group-message';
                 msgDiv.id = `group-msg-${msg.id}`;
 
+                // DƏYİŞİKLİK: Sistem xəbərdarlığını yoxlayırıq
                 if (msg.isSystemWarning) {
-                    msgDiv.style.backgroundColor = '#fff0f0';
+                    msgDiv.style.backgroundColor = '#fff0f0'; // Açıq qırmızı fon
                     msgDiv.style.border = '1px solid #ff3b30';
                     msgDiv.innerHTML = `<div class="sender" style="color: #ff3b30;">⚠️ ${msg.sender.profile.name}</div><div>${msg.content}</div>`;
                     msgContainer.appendChild(msgDiv);
                     elements.groupChatMessages.appendChild(msgContainer);
                     elements.groupChatMessages.scrollTop = elements.groupChatMessages.scrollHeight;
-                    return;
+                    return; // Funksiyanı burada bitiririk, reaksiya əlavə etmirik.
                 }
 
-                const decryptedContent = decryptMessageContent(msg.content);
-
+                // Normal mesajlar üçün köhnə məntiq davam edir
                 let senderName = msg.sender?.profile?.name || 'Bilinməyən';
                 if (currentUser && msg.senderId === currentUser.id) {
                     senderName = 'Siz';
@@ -549,10 +534,11 @@
                 }
 
                 let contentHtml = `<div class="sender">${senderName}</div>`;
-                if (decryptedContent) contentHtml += `<div>${decryptedContent}</div>`;
+                if (msg.content) contentHtml += `<div>${msg.content}</div>`;
                 if (msg.imageUrl) contentHtml += `<img src="${msg.imageUrl}" style="max-width: 200px; border-radius: 12px;">`;
                 msgDiv.innerHTML = contentHtml;
 
+                // Reaksiya SEÇİMLƏRİNİ yaradırıq (gizli)
                 const reactionsDiv = document.createElement('div');
                 reactionsDiv.className = 'reactions';
                 ['👍', '❤️', '😂', '🔥'].forEach(emoji => {
@@ -566,12 +552,13 @@
                 });
                 msgDiv.appendChild(reactionsDiv);
 
+                // Reaksiyaları GÖSTƏRƏN sahəni yaradırıq
                 const reactionDisplayDiv = document.createElement('div');
                 reactionDisplayDiv.className = 'reaction-display';
                 reactionDisplayDiv.id = `reaction-display-${msg.id}`;
 
                 if (msg.reactions && msg.reactions.length > 0) {
-                    // ... (reaksiya göstərmə məntiqi)
+                    // ... (reaksiya göstərmə məntiqi eyni qalır)
                 } else {
                     reactionDisplayDiv.style.display = 'none';
                 }
@@ -580,8 +567,8 @@
                 msgContainer.appendChild(reactionDisplayDiv);
                 elements.groupChatMessages.appendChild(msgContainer);
                 elements.groupChatMessages.scrollTop = elements.groupChatMessages.scrollHeight;
-            }
-
+            } // --- Qrup Yazma İndikatoru ---
+        
             function updateGroupTypingIndicator() {
                 const userNames = Object.values(groupTypingUsers);
                 if (userNames.length === 0) {
@@ -654,13 +641,12 @@
                     elements.icebreakerSuggestions.innerHTML = '';
 
                     try {
-                        // DÜZƏLİŞ: connectionId-ni düzgün göndəririk.
                         const history = await fetch(`${elements.serverUrl.value}/api/chat/${data.connection.id}/messages`, {
                             headers: { 'Authorization': `Bearer ${token}` }
                         }).then(res => res.json());
 
-                        if (history && history.data && history.data.length > 0) {
-                            history.data.forEach(msg => appendMessage(msg, true));
+                        if (history && history.length > 0) {
+                            history.forEach(msg => appendMessage(msg, true));
                         } else {
                             const questions = await fetch(`${elements.serverUrl.value}/api/chat/icebreakers`, {
                                 headers: { 'Authorization': `Bearer ${token}` }
@@ -738,6 +724,7 @@
 
                 socket.on('moderation_warning', (data) => {
                     log(`MODERATION WARNING: ${data.message}`, 'error');
+                    // İstifadəçiyə dərhal bildiriş göstəririk
                     alert(`XƏBƏRDARLIQ: ${data.message}`);
                 });
 
@@ -788,12 +775,10 @@
                 socket.emit('join_venue', Number(venueId), {});
             });
 
-            // DÜZƏLİŞ: Mesaj göndərmə butonu
             elements.sendMessageBtn.addEventListener('click', () => {
                 const content = elements.messageInput.value.trim();
                 if (!currentConnection || !content) return;
-                const encryptedContent = CryptoJS.AES.encrypt(content, E2EE_KEY).toString();
-                socket.emit('send_message', { connectionId: currentConnection.connection.id, encryptedContent: encryptedContent });
+                socket.emit('send_message', { connectionId: currentConnection.connection.id, content: content });
                 elements.messageInput.value = '';
                 if (typingTimeout) {
                     clearTimeout(typingTimeout);
@@ -802,16 +787,11 @@
                 }
             });
 
-            // DÜZƏLİŞ: Qrup mesajı göndərmə butonu
             elements.sendGroupMessageBtn.addEventListener('click', () => {
                 const content = elements.groupMessageInput.value.trim();
                 const venueId = elements.venueId.value;
                 if (!socket || !venueId || !content) return;
-
-                const encryptedContent = CryptoJS.AES.encrypt(content, E2EE_KEY).toString();
-
-                socket.emit('send_venue_group_message', { venueId: Number(venueId), encryptedContent: encryptedContent });
-
+                socket.emit('send_venue_group_message', { venueId: Number(venueId), content: content });
                 elements.groupMessageInput.value = '';
                 if (groupTypingTimeout) {
                     clearTimeout(groupTypingTimeout);
@@ -861,7 +841,6 @@
                 }
             });
 
-            // DÜZƏLİŞ: Şəkil göndərmə
             elements.sendImageBtn.addEventListener('click', async () => {
                 const file = imageInput.files[0];
                 if (!file || !currentConnection) {
@@ -869,7 +848,7 @@
                     return;
                 }
 
-                sendImageBtn.disabled = true;
+                sendImageBtn.disabled = true; // Təkrarlanmanın qarşısını almaq üçün düyməni kilidləyirik
                 log('Şəkil Cloudinary-ə yüklənir...', 'sent');
                 const formData = new FormData();
                 formData.append('chatImage', file);
@@ -890,15 +869,14 @@
                         imageUrl: result.url
                     });
 
-                    imageInput.value = '';
+                    imageInput.value = ''; // Inputu təmizləyirik
                 } catch (error) {
                     log(`Şəkil göndərilərkən xəta: ${error.message}`, 'error');
                 } finally {
-                    sendImageBtn.disabled = false;
+                    sendImageBtn.disabled = false; // Əməliyyat bitdikdən sonra düyməni aktiv edirik
                 }
             });
 
-            // DÜZƏLİŞ: Qrup şəkli göndərmə
             elements.sendGroupImageBtn.addEventListener('click', async () => {
                 const file = elements.groupImageInput.files[0];
                 const venueId = elements.venueId.value;
@@ -933,7 +911,6 @@
                 }
             });
 
-            // DÜZƏLİŞ: Səsli mesaj göndərmə
             elements.recordBtn.addEventListener('click', async () => {
                 try {
                     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -952,14 +929,14 @@
                 }
             });
 
-            // DÜZƏLİŞ: Səs yazma bitəndə
             elements.stopBtn.addEventListener('click', () => {
                 mediaRecorder.addEventListener("stop", async () => {
-                    const audioBlob = new Blob(audioChunks, { type: 'audio/mp3' });
+                    const audioBlob = new Blob(audioChunks, { type: 'audio/mp3' }); // Formatı dəyişə bilərsiniz
                     const audioUrl = URL.createObjectURL(audioBlob);
                     elements.audioPlayer.src = audioUrl;
                     elements.audioPlayer.style.display = 'block';
 
+                    // Faylı göndərməyə başla
                     const formData = new FormData();
                     formData.append('chatAudio', audioBlob, 'voice-message.mp3');
 

@@ -1,51 +1,29 @@
 {
   "name": "glow-backend",
   "version": "1.0.0",
-  "description": "Lyra - Real-time location-based social discovery app backend",
+  "description": "",
   "main": "index.js",
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "prisma:generate": "npx prisma generate",
-    "prisma:migrate": "npx prisma migrate deploy",
     "prisma:seed": "node prisma/seed.js",
-    "deploy": "npm run prisma:generate && npm run prisma:migrate && npm run prisma:seed",
-    "docker:build": "docker build -f Docker/Dockerfile -t lyra-backend .",
-    "docker:run": "docker run -p 3000:3000 --env-file .env lyra-backend",
-    "docker:compose:up": "docker-compose -f Docker/docker-compose.yml up -d",
-    "docker:compose:down": "docker-compose -f Docker/docker-compose.yml down",
-    "logs": "tail -f combined.log",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [
-    "social",
-    "location-based",
-    "real-time",
-    "websocket",
-    "nodejs",
-    "express",
-    "prisma",
-    "postgresql"
-  ],
-  "author": "Terlan Aliyev",
-  "license": "MIT",
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
   "type": "commonjs",
-  "engines": {
-    "node": ">=18.0.0",
-    "npm": ">=8.0.0"
-  },
   "dependencies": {
     "@prisma/client": "^6.12.0",
     "bcryptjs": "^3.0.2",
     "check-disk-space": "^3.4.0",
     "cloudinary": "^1.41.3",
     "cors": "^2.8.5",
-    "express": "^4.21.2",
+    "express": "^5.1.0",
     "express-rate-limit": "^8.0.1",
     "express-validator": "^7.2.1",
     "firebase-admin": "^13.4.0",
     "google-auth-library": "^10.2.0",
-    "helmet": "^8.1.0",
     "ioredis": "^5.7.0",
     "jsonwebtoken": "^9.0.2",
     "multer": "^2.0.2",
@@ -58,8 +36,5 @@
     "swagger-jsdoc": "^6.2.8",
     "swagger-ui-express": "^5.0.1",
     "winston": "^3.17.0"
-  },
-  "devDependencies": {
-    "nodemon": "^3.0.0"
   }
 }

@@ -1,18 +1,6 @@
 const prisma = require('../../config/prisma');
 const redis = require('../../config/redis'); 
 
-const clearAdminReportsCache = async () => {
-    try {
-        const keys = await redis.keys('admin:reports:page:*');
-        if (keys.length > 0) {
-            await redis.del(keys);
-            console.log('[CACHE INVALIDATION] Admin Reports keş təmizləndi.');
-        }
-    } catch (error) {
-        console.error('Admin Reports keşini təmizləmə xətası:', error);
-    }
-};
-
 const getReports = async (queryParams) => {
     const { page = 1, limit = 10 } = queryParams;
 
@@ -57,8 +45,6 @@ const updateReportStatus = async (reportId, status) => {
     if (!['PENDING', 'RESOLVED', 'REJECTED'].includes(status)) {
         throw new Error('Yanlış status dəyəri.');
     }
-        await clearAdminReportsCache();
-
     return prisma.report.update({
         where: { id: reportId },
         data: { status: status },
